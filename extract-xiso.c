@@ -296,6 +296,7 @@
 	#define READWRITEFLAGS				O_RDWR | O_LARGEFILE
 
 	#define lseek						lseek64
+	#define stat						stat64
 
 	#if 1								// change the 1 on this line to a 0 if compiling for LinuxPPC
 		#define big16( n )
@@ -366,7 +367,7 @@
 #endif
 
 
-#define exiso_version					"2.4b2"
+#define exiso_version					"2.4b3"
 #define VERSION_LENGTH					5
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
@@ -2105,12 +2106,12 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 int generate_avl_tree_remote( dir_node_avl **out_root, int *io_n ) {
 	dir_node_avl	   *avl;
 	int					err = 0, i, j;
-	FTP_STAT		   *stat = nil, *p;
+	FTP_STAT		   *ftp_stat = nil, *p;
 	bool				empty_dir = true;
 
-	if ( FtpStat( s_ftp, "", &stat ) < 0 ) misc_err( "unable to stat remote directory", 0, 0, 0 );
+	if ( FtpStat( s_ftp, "", &ftp_stat ) < 0 ) misc_err( "unable to stat remote directory", 0, 0, 0 );
 
-	for ( p = stat; ! err && p != nil; p = p->next ) {
+	for ( p = ftp_stat; ! err && p != nil; p = p->next ) {
 		if ( ! strcmp( p->name, "." ) || ! strcmp( p->name, ".." ) ) continue;
 
 		for ( i = *io_n; i; --i ) exiso_log( "\b" );
@@ -2156,7 +2157,7 @@ int generate_avl_tree_remote( dir_node_avl **out_root, int *io_n ) {
 	
 	if ( empty_dir ) *out_root = EMPTY_SUBDIRECTORY;
 	
-	if ( stat ) FtpStatFree( stat );
+	if ( ftp_stat ) FtpStatFree( ftp_stat );
 	
 	return err;
 }
