@@ -2,6 +2,9 @@ static char rcsid[] = "$Id$";
 
 /*
 	$Log$
+	Revision 1.1.1.1  2004/05/04 19:31:35  in_the_mix
+	Initial import.
+	
 	Revision 1.1.1.1  2004/04/30 22:17:54  brian
 	initial import
 	
@@ -93,22 +96,34 @@ STATUS FtpStat(FTP *ftp, char *patern, FTP_STAT **first)
   sys_msdos  = !strcmp(syst,"MSDOS");
 
 #if ! defined( _WIN32 )
-  sprintf(tmp,"/tmp/%s.XXXXXX",getpwuid(getuid())->pw_name);
-  if ( mktemp( tmp ) == -1 ) return EXIT( ftp, LQUIT );
+  {
+  	int fd;
+  
+	sprintf(tmp,"/tmp/%s.XXXXXX",getpwuid(getuid())->pw_name);
+  	if ( ( fd = mkstemp( tmp ) ) == -1 ) return EXIT( ftp, LQUIT );
+  	
+  	close( fd );
+  }
 #else
 	sprintf( tmp, "extract-xiso.tmp.XXXXXX" );
 	if ( _mktemp( tmp ) == NULL ) return EXIT( ftp, LQUIT );
 #endif
 
-	if ( ( tmp2 = strdup( tmp ) ) == NULL ) { errno = ENOMEM; return EXIT( ftp, LQUIT ); }
+	if ( ( tmp2 = strdup( tmp ) ) == NULL ) {
+		errno = ENOMEM;
+		unlink( tmp );
+		return EXIT( ftp, LQUIT );
+	}
 
   if (*patern==0)
     FtpRetr(ftp,"LIST","",tmp);
   else
     FtpRetr(ftp,sys_unix?"LIST -d %s":"LIST %s",patern,tmp);
   
-  if ( (in=fopen(tmp,"r")) == NULL)
-    return EXIT(ftp,LQUIT);
+  if ( (in=fopen(tmp,"r")) == NULL) {
+	unlink( tmp );
+	return EXIT(ftp,LQUIT);
+  }
 
   
   while(1)
