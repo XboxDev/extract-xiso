@@ -257,7 +257,7 @@
 	#define PATH_CHAR_STR				"/"
 
 	// I'm not planning on distributing the cd-burning code on darwin, so BURN_ENABLED is 0
-	#define BURN_ENABLED				1
+	#define BURN_ENABLED				0
 
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
