@@ -1,0 +1,479 @@
+..TH \fBuftp\fR 1
+..SH Name
+uftp \- universal file transfer program
+..SH Syntax
+\fBuftp\fR
+..PP
+\fBuftp alias_or_command [args]\fR
+..PP 
+\fBuftp hostname\fR
+
+..SH Description
+
+
+The uftp is user interactive and non-interactive program to the ARPANET File Transfer Protocol (RFC959).
+The uftp allows user to transfer files, group of files, threes of directories in foreground and background modes. uftp runs on the client host.
+
+
+..SH Basic features
+
+
+
+Auto retrying of connection to remote node until it is succeeded.
+..PP
+Automatic reconnection with continue to transfer if the connection was broken.
+..PP
+Several sessions (frames) simulteniously. Dynamically switching between them. 
+..PP
+Setup commands, which are executed after "open" and "cd" commands. (aliases autologin & autocd )
+..PP
+Cleaning timeout on the remote server (by default switched off).
+..PP
+The user can setup a lot of system parameters, like timeouts, reconnect delays, default port number,
+automatic binary mode, automatic "hash" mode and interval to clean timeouts on FTP server. (by default it is turned off)
+..PP
+User can setup the prompt with the descriptions of local and remote directories, full or short site name, 
+time, frame number,
+remote user's name, port number, timeout, process identification.
+..PP
+Several commands in one line (separated by ';').
+..PP
+Aliases with arguments, which may contain few commands separated by ';'.
+..PP
+Redirection input/output irrespective of context or/and command.
+..PP
+The local files are libftp-files, which split on local filesand pipes. This particular file specification
+can be used in any context, including for file names of redirection input/output streams.
+..PP 
+Any command may be executed in background mode, though the current frame is not dropped out and user can continue
+his work.
+..PP
+Creation of alias described the current frame, and save all exist aliases to personal 
+automatic startup file, which is differ from startup file. This file user can make himself.
+..PP
+Completion mechanism which predefined to apply existing commands aliases and known hosts and can be modified by user (using command compctl).
+..PP
+..PP
+..PP
+Automatic file-search using archie-server that. 
+..PP
+Receiving files thru HTTP-proxyserver.
+ 
+..SH Environment description
+
+
+
+Command line mode supports all edit key bindings and completion mechanism. (uftp using public domain getline library). 
+Before each command user have the prompt with description of current frame.
+If debug mode is enabled user see the protocol between uftp and ftp-daemon (ftpd).
+
+
+
+..SH Commands
+
+
+..IP \fBcompctl\fR 10
+[arg1] [arg2] [arg3]
+
+This function gives possibility to manage completion of commands typed by user
+in command line. Without any argument last one prints list of already 
+existed command in compctl-cache. Otherwise you push new one to stack. For 
+example you push to lines in your startup files such as "compctl set login albert" and "compctl set login manager", if later you press <TAB> after typing "login" you got list with two words, and after pressing "a" or "m" and <TAB> you will complete one from them.
+
+
+..IP \fBconnect\fR 10
+[host-name]
+
+Connect to remote site.
+
+..IP \fBopen\fR 10
+[host-name] [user-name] [password] [directory] 
+
+Makes connection to remote site, sent login, password and change directory. 
+If the "try" option is set an attempt to connect will be forced until success.
+
+..IP \fBftp\fR 10
+[hostname] [directory]
+
+Anonymous connection to ftp-site.
+
+..IP \fBreopen\fR 10
+
+Reopen broken frame. 
+
+..IP \fBpreconnect\fR 10
+[host-name] [user-name] [password] [directory] 
+
+Makes data for future connection in the cache. If after that you will do some
+transfer operation like get or put .... connection will be maded just before 
+transfer, it can be usable if you don't have access to server right now and
+want to keep task for execution at time when it will be possible.
+
+..IP \fBclose\fR 10
+
+Close the current connection.
+
+..IP \fBquit\fR 10
+..IP \fBexit\fR 10
+
+Quit from uftp (You can press Control-D)
+
+..IP \fBlist\fR 10
+
+Description list of all frames.
+
+..IP \fBuser\fR 10
+[user-name] [password]
+
+Send user's name to site, automatically require password if needed.
+
+..IP \fBpass\fR 10
+[password]
+
+Specify user's password.
+
+..IP \fBbin\fR 10
+
+Set binary transfer mode.
+
+..IP \fBascii\fR 10
+
+Set ASCII transfer mode.
+
+..IP \fBcd\fR 10
+directory_name
+
+Change the current directory on remote site.
+
+..IP \fBacd\fR 10
+[directory_name]
+
+Archie searching by specified pattern with subsequent connection to desired point. 
+Maximum number of possible points is 20.
+Afterwards user can select any point. If user don't specify "directory_name", 
+last search buffer is displayed for selection, if this buffer is not empty.
+
+..IP \fBlcd\fR 10
+directory_name
+
+Local change directory. User can use meta-characters.
+
+..IP \fBabort\fR 10
+
+Abort execute of last procedure with server. 
+
+..IP \fBmkdir\fR 10
+directory_name
+
+Create new directory on the server.
+
+..IP \fBrm\fR 10
+filename_or_pattern
+
+Remove specified file(s) on the server.
+
+..IP \fBmv\fR 10
+old_filename new_filename
+
+Move file on the server.
+
+..IP \fBdir\fR 10
+[keys] [filename_spec] ....
+
+Make long list of specified file(s) with date, size, etc...
+
+..IP \fBls\fR 10
+[keys] [filename_spec] ....
+
+Make short list of specified file(s).
+
+..IP \fBget\fR 10
+remote_filename [local_filename_or_directory]
+
+Receive the file from the server to local file system (only one file!).
+If option "rest" is turn on then transfer starts from the end of local file.
+
+..IP \fBpget\fR 10
+HTTP-file-specification
+
+Receive the file using HTTPD as gateway for transferring. Using that you can transfer files (ftp://hostname/path/file) or other objects (for example: http://www.cern.ch). For setting http-server and his port will use "set wwwgateway" and "set wwwport"
+
+..IP \fBmget\fR 10
+[remote_filename] [local_directory]
+
+Receive many files from the server to local file system. If you run this command without arguments you will transfer all files in that directory including subdirectories and his files.
+
+..IP \fBaget\fR 10
+[pattern_for_archie]
+
+Getting the file, which need to find via archie service. See also "acd" description.
+
+..IP \fBaaget\fR 10
+[pattern_for_archie]
+
+Getting the file, which need to find via archie service and retrieving it
+from any host which accessible. If connection to server will broke then 
+reconnect to another server or some if only one and continue to transfer 
+from last point. 
+
+..IP \fBput\fR 10
+local_filename [remote_filename]
+
+Put one file to server.
+
+..IP \fBmput\fR 10
+local_filename(s) 
+
+Put specified file(s) to server.
+
+..IP \fBcopy\fR 10
+[frame/]filename [frame/]filename
+
+Copy one file from first frame to second. If the frame number is not specified 
+then use current frame number. Transfer operation executes via libftp cache.
+
+
+..IP \fBccopy\fR 10
+[frame/]filename [frame/]filename
+
+Copy one file from first frame to second. If the frame number is not specified 
+then used current frame number. Transfer operation executes via leased line
+between two servers cache.
+
+
+..IP \fBcat\fR 10
+filename
+
+Display context of specified file on screen. For display file with 
+page-scrolling you can define once command for example "less" as "alias less get $1 |less".  
+
+..IP \fBpage\fR 10
+
+The same as cat, but with using of pager. Name of pager specified in environment variable
+PAGER or "more" by default. (It's just predefined possibility described bellow)
+
+..IP \fBbg\fR 10
+any_command
+
+any_command &
+
+Run any command in background mode. Default output is redirected to
+/tmp/uftp-<user_name>/XXXXXX file.
+
+..IP \fBarchie\fR 10
+[pattern]
+
+Archie search. In case if argument are omitted, reprint last search. (same for acd and aget)
+
+..IP \fBdup\fR 10
+
+Create new frame as current.
+
+..IP \fBquote\fR 10
+
+Send raw command to server. If option "glassmode" is set then all non-recognized
+commands send to server as raw also.
+
+..IP \fBhelp\fR 10
+[command]
+
+Print brief help or help for specified command.
+
+..IP \fBsetenv\fR 10
+variable_name value
+
+Setup system's environment variable.
+ 
+..IP \fBunsetenv\fR 10
+variable_name
+
+Remove system's environment variable.
+ 
+..IP \fBenv\fR 10
+
+Print system's environment variables.
+
+..IP \fBalias\fR 10
+alias_name alias_string
+
+Makes new alias, if the alias string uftp contains string like $1, $2, $* then
+it will be replaced by argument to alias. If this sequences in alias is not found, then 
+all existing alias's arguments will append to end of alias call string. User can insert to alias
+string like \\\> \\\< for future redirect input/output. Quotes ' and " can be used 
+also.
+
+..IP \fBunalias\fR 10
+alias_name 
+
+Remove specified alias.
+
+..IP \fBmkalias\fR 10
+alias_name
+
+Makes new alias, which user can use in future for login to this point again. 
+See also "savealiases"
+
+..IP \fBsavealiases\fR 10
+
+Save all aliases in startup file.
+
+
+..SH Libftp file specification
+
+All local files interpret as libftp's files. Libftp responds to two types of files such
+ as local file and program
+pipes. All files can be described as next syntax:
+
+   |string - interprets string as shell command, which must be \
+   executed with appropriate input/output for file. It depends where
+   this file is specified.
+
+   *STDIN*, *STDOUT*, *STDERR* or char '-' - opened streams.
+
+   anything - local file name.
+
+..SH String syntax
+
+The strings starting from char '!' interpret as shell command.
+The strings or aliases containing one or few char ';' will be executed as a chain commands.
+The chains of characters between  " or ' interpret as one set without syntax resolving.
+In any command string user can redirect input or/and output 
+using char > and < . For the complex file name it must quoted by ' or ". 
+
+Examples:
+
+	dir >filename
+
+	cat filename >'|mail -s "my files" fiend@hostname.domain' 
+
+	dir -R etc bin >"|gzip >result.gz"
+
+	put - < "|finger @hostname" newfile.finger
+
+
+..SH Options (command set)
+
+..IP \fBset\fR
+
+
+Show all current settings.
+
+..IP \fBset\fR 
+frame <frame_number>
+
+Switch to another frame. You can also switch by insert on frame number to the 
+begin of command line.
+
+..IP \fBset\fR 
+timeout <seconds> 
+
+Set timeout for send/receive operations.
+
+..IP \fBset\fR 
+noop <secs> 
+
+Set interval for send NOOP command to each connected server for cleaning
+timeouts. 
+
+..IP \fBset\fR 
+nooptimeout <seconds> 
+
+Set timeout for NOOP operation.
+
+..IP \fBset\fR 
+sleep <secs> 
+
+Set pause interval between transfer attempts.
+
+..IP \fBset\fR 
+debug <y|n> 
+
+Enable or disable protocol debug output
+
+..IP \fBset\fR 
+try <y|n> 
+
+Enable or disable retrys after lost peer.
+
+..IP \fBset\fR 
+hash <y|n> 
+
+Enable or disable trace for the transfer operations.
+
+..IP \fBset\fR 
+restore <y|n> 
+
+Enable or disable default transfer starting from end of file.
+
+..IP \fBset\fR 
+bin <y|n> 
+
+Automatic binary mode.
+
+..IP \fBset\fR 
+prompt <prompt_string> 
+
+Set the prompt. Prompt is a string, which may contain %<char>
+or ^<char> combitanions with the next embodies:
+
+               %H, %h - full and short remote host names
+               %M, %m - full and short local host names
+               %u     - remote user's name
+               %d     - remote current directory
+               %D     - local current directory
+               %f     - number of current frame
+               %p     - the ftp's port number
+               %t     - timeout
+               %T     - current time
+               %P     - uftp process id
+               %%     - character %
+               ^<char>- control character
+               %^     - character ^
+
+
+..IP \fBset\fR 
+port <number>
+
+Set default FTP's port for next sessions.
+
+..IP \fBset\fR 
+user <user_name>
+
+Set default user's name.
+
+..IP \fBset\fR 
+wwwgateway <host_name>
+
+Set www proxy gateway name or it's address.
+
+..IP \fBset\fR 
+wwwport <port_number>
+
+Set port number for http-proxy server.
+
+..IP \fBsavesets\fR 
+
+Save all sets to startup file.
+
+..SH Startup file
+
+User can modify his startup file created automatically. This file may
+contain some uftp's commands separated by new-line. The name of this file is ~/.uftprc.
+The file ~/.uftp_aliases ~/.uftp_sets is created automatically by uftp's command "savealias" or "savesets", 
+so it is not needed to edit handy.
+The file ~/.uftp_hosts can contain list of hosts for uftp's command which have host's name as argument.
+
+..SH Author of uftp and libftp
+
+  Oleg Orel 	
+
+  Europien Organization for Nuclear Research
+  Geneva, SWITZERLAND
+
+  E-mail: orel@dxunk1.cern.ch
+
+
+
+..SH See also (and compare)
+
+ \fBncftp\fR (1),  \fBftp\fR (1),  \fBftpd\fR (8)
