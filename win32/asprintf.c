@@ -22,7 +22,6 @@
 
 /*
  * asprintf.c -- asprintf() implementation for braindamaged operating systems
- * $Id$
  */
 
 #ifndef _WIN32

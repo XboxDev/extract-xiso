@@ -1,21 +1,3 @@
-static char rcsid[] = "$Id:";
-
-/*
- $Log$
- Revision 1.1.1.1  2004/04/30 22:17:54  brian
- initial import
-
- * Revision 5.0  1995/12/10  10:28:38  orel
- * LIBFTP Version 5.0 (Distributed revision)
- *
- * Revision 1.2  1995/12/02  11:23:07  orel
- * *** empty log message ***
- *
- * Revision 1.1  1995/11/21  21:44:20  orel
- * Initial revision
- *
-*/
-
 /*
 		      Library for ftpd clients.(libftp)
 			Copyright by Oleg Orel

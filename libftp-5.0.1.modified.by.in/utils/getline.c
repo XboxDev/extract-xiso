@@ -1,6 +1,4 @@
 #ifndef lint
-static char     rcsid[] =
-"$Id$";
 static char    *copyright = "Copyright (C) 1991, 1992, 1993, Chris Thewalt";
 #endif
 

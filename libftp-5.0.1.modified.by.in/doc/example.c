@@ -1,18 +1,3 @@
-static char rcsid[] = "$Id$";
-
-/*
-	$Log$
-	Revision 1.1.1.1  2004/04/30 22:17:54  brian
-	initial import
-	
- * Revision 5.0  1995/12/10  10:37:11  orel
- * LIBFTP Version 5.0 (Distributed revision)
- *
-
-*/
-
-/* Include standard libftp's header */
-
 #include <FtpLibrary.h> 
 
 
