@@ -23,6 +23,7 @@ Commercial  usage is  also  possible  with  participation of it's author.
 #include <errno.h>
 #include <stdio.h>
 #include <stdarg.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
@@ -35,6 +36,7 @@ Commercial  usage is  also  possible  with  participation of it's author.
 #include <arpa/telnet.h>
 #include <netinet/in.h>
 #include <netdb.h>
+#include <unistd.h>
 
 #define winsock_fdopen		fdopen
 #else
@@ -324,6 +326,7 @@ STATUS  FtpGood1 (int, int *);
 struct  hostent *FtpGetHost(char *host);
 STATUS  FtpFilenameChecher(char *input, char *output);
 STATUS  FtpLink(FTP *,FTP *);
+char   *FtpPasv( FTP * );
 int     FtpArchie(char *what, ARCHIE *, int number);
 char   *word(char *s,int n);
 STATUS  FtpHttpGet(char *server,int port,char *spec, char *newfile);

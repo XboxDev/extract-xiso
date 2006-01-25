@@ -68,6 +68,8 @@ int FtpGetMessage(FTP *con , char * Message )
   strcpy(FtpMessageList[n] , Message );
   if ( con -> debug != NULL )
     (*con->debug)(con,n,Message);
+    
+//   printf( "> %s\n", Message );
 
   return n;
 }
@@ -78,6 +80,8 @@ STATUS FtpSendMessage( FTP *ftp, char *inMessage ) {
 	int			fd = fileno( FTPCMD( ftp ) );	
 
 	if ( ! inMessage || ! *inMessage ) return 0;
+	
+//	printf( "< %s\n", inMessage );
 	
 	FD_ZERO( &fds );
 	FD_SET( fd, &fds );

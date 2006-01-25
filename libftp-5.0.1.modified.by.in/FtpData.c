@@ -55,7 +55,7 @@ STATUS FtpData(FTP * con,char * command , char * file ,char * mode)
 		return EXIT(con,QUIT);
 	}
 
-	if ( getsockname ( NewSocket , (struct sockaddr*) &data , &len ) < 0 ) {
+	if ( getsockname ( NewSocket , (struct sockaddr*) &data , (socklen_t *) &len ) < 0 ) {
 		fprintf( stderr, "bind() failed in FtpData: %s\n", strerror( errno ) );
 		close(NewSocket);
 		return EXIT(con,QUIT);
@@ -81,7 +81,7 @@ STATUS FtpData(FTP * con,char * command , char * file ,char * mode)
   
 	FtpAssert(con, i=FtpCommand ( con , command , file , 200, 120 , 150 , 125 , 250 , EOF ));
   
-	if (( Accepted_Socket = accept (NewSocket , (struct sockaddr *)&from , &fromlen )) < 0) {
+	if (( Accepted_Socket = accept (NewSocket , (struct sockaddr *)&from , (socklen_t *) &fromlen )) < 0) {
 		fprintf( stderr, "accept() failed in FtpData: %s\n", strerror( errno ) );
 		close(NewSocket);
 		return EXIT(con,QUIT);

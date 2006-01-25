@@ -193,6 +193,22 @@
 						
 		12.02.03 in:	Fixed a few bugs in the ftp subsystem and increased the read-write buffer size
 						to 2Mb.  That should help ftp performance quite a bit.
+						
+		10.29.04 in:	Well, it's been a looooong time since I've worked on this little program...
+						I've always been irritated by the fact that extract-xiso would never create an
+						iso that could be auto-detected by CD/DVD burning software.  To burn iso's I've
+						always had to go in and select a manual sector size of 2048 bytes, etc.  What
+						a pain!  As a result, I've been trying to get my hands on the Yellow Book for
+						ages.  I never did manage that as I didn't want to pay for it but I did some
+						research the other day and came across the ECMA-119 specification.  It lays
+						out the exact volume format that I needed to use.  Hooray!  Now xiso's are
+						autodetected and burned properly by burning software...
+						
+						If you try to follow what I've done and find the write_volume_descriptors()
+						method cryptic, just go download the ecma-119 specification from the ecma
+						website.  Read about primary volume descriptors and it'll make sense.
+						
+						Bleh! This code is ugly ;-)
 
 	enjoy!
 	
@@ -214,9 +230,11 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
+
 #if defined( __FREEBSD__ )
 	#include <machine/limits.h>
 #endif
+
 
 #if ! defined( NO_FTP )
 	#define libftp_client
@@ -246,6 +264,7 @@
 	#include "win32/dirent.c"
 #else
 	#include <dirent.h>
+	#include <limits.h>
 	#include <unistd.h>
 #endif
 
@@ -262,9 +281,6 @@
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
 	#define READWRITEFLAGS				O_RDWR
-	
-	#define big16( n )					( ( n ) = ( n ) << 8 | ( n ) >> 8 )
-	#define big32( n )					( ( n ) = ( n ) << 24 | ( n ) << 8 & 0xff0000 | ( n ) >> 8 & 0xff00 | ( n ) >> 24 )
 
 	typedef	off_t						xoff_t;
 #elif defined( __FREEBSD__ )
@@ -278,9 +294,6 @@
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
 	#define READWRITEFLAGS				O_RDWR
-	
-	#define big16( n )					// assuming freebsd on intel.  use the big16/32 definitions for darwin if your processor is big-endian
-	#define big32( n )				
 
 	typedef	off_t						xoff_t;
 #elif defined( __LINUX__ )
@@ -297,14 +310,6 @@
 
 	#define lseek						lseek64
 	#define stat						stat64
-
-	#if 1								// change the 1 on this line to a 0 if compiling for LinuxPPC
-		#define big16( n )
-		#define big32( n )
-	#else
-		#define big16( n )				( ( n ) = ( n ) << 8 | ( n ) >> 8 )
-		#define big32( n )				( ( n ) = ( n ) << 24 | ( n ) << 8 & 0xff0000 | ( n ) >> 8 & 0xff00 | ( n ) >> 24 )
-	#endif
 	
 	typedef __off64_t					xoff_t;
 #elif defined( _WIN32 )
@@ -322,9 +327,6 @@
 	#define S_ISDIR( x )				( ( x ) & _S_IFDIR )
 	#define S_ISREG( x )				( ( x ) & _S_IFREG )
 
-	#define big16( n )				
-	#define big32( n )				
-
 	#define ULONG_MAX					0xfffffffful
 
 	#include "win32/getopt.c"
@@ -338,6 +340,24 @@
 	#error unknown target, cannot compile!
 #endif
 
+
+#define swap16( n )						( ( n ) = ( n ) << 8 | ( n ) >> 8 )
+#define swap32( n )						( ( n ) = ( n ) << 24 | ( n ) << 8 & 0xff0000 | ( n ) >> 8 & 0xff00 | ( n ) >> 24 )
+
+
+#if BYTE_ORDER == BIG_ENDIAN
+	#define big16( n )
+	#define big32( n )
+	#define little16( n )				swap16( n )
+	#define little32( n )				swap32( n )
+#else
+	#define big16( n )					swap16( n )
+	#define big32( n )					swap32( n )
+	#define	little16( n )
+	#define little32( n )
+#endif
+
+
 #if BURN_ENABLED
 	#define BURN_OPTION_CHAR			"b"
 	#define BURN_OPTION_TEXT			"    -b                  Burn xiso image to disc.\n"
@@ -348,9 +368,11 @@
 	enum { err_burn_aborted = -5004 };
 #endif
 
+
 #define DEBUG_VERIFY_XISO				0
 #define DEBUG_OPTIMIZE_XISO				0
 #define DEBUG_TRAVERSE_XISO_DIR			0
+
 
 #ifndef DEBUG
 	#define DEBUG						0
@@ -362,13 +384,14 @@
 	enum { false, true };
 #endif
 
+
 #ifndef nil
 	#define nil							0
 #endif
 
 
-#define exiso_version					"2.4b3"
-#define VERSION_LENGTH					5
+#define exiso_version					"2.5 (10.25.05)"
+#define VERSION_LENGTH					14
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
 
@@ -458,20 +481,20 @@
 #define exiso_log						if ( ! s_quiet ) printf
 #define flush()							if ( ! s_quiet ) fflush( stdout )
 
-#define mem_err()						{ log_err( "out of memory error\n" ); err = 1; }
-#define read_err()						{ log_err( "read error: %s\n", strerror( errno ) ); err = 1; }
-#define seek_err()						{ log_err( "seek error: %s\n", strerror( errno ) ); err = 1; }
-#define write_err()						{ log_err( "write error: %s\n", strerror( errno ) ); err = 1; }
-#define rread_err()						{ log_err( "unable to read remote file\n" ); err = 1; }
-#define rwrite_err()					{ log_err( "unable to write to remote file\n" ); err = 1; }
-#define unknown_err()					{ log_err( "an unrecoverable error has occurred\n" ); err = 1; }
-#define open_err( in_file )				{ log_err( "open error: %s %s\n", ( in_file ), strerror( errno ) ); err = 1; }
-#define chdir_err( in_dir )				{ log_err( "unable to change to directory %s: %s\n", ( in_dir ), strerror( errno ) ); err = 1; }
-#define mkdir_err( in_dir )				{ log_err( "unable to create directory %s: %s\n", ( in_dir ), strerror( errno ) ); err = 1; }
-#define ropen_err( in_file )			{ log_err( "unable to open remote file %s\n", ( in_file ) ); err = 1; }
-#define rchdir_err( in_dir )			{ log_err( "unable to change to remote directory %s\n", ( in_dir ) ); err = 1; }
-#define rmkdir_err( in_dir )			{ log_err( "unable to create remote directory %s\n", ( in_dir ) ); err = 1; }
-#define misc_err( in_format, a, b, c )	{ log_err( ( in_format ), ( a ), ( b ), ( c ) ); err = 1; }
+#define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error\n" ); err = 1; }
+#define read_err()						{ log_err( __FILE__, __LINE__, "read error: %s\n", strerror( errno ) ); err = 1; }
+#define seek_err()						{ log_err( __FILE__, __LINE__, "seek error: %s\n", strerror( errno ) ); err = 1; }
+#define write_err()						{ log_err( __FILE__, __LINE__, "write error: %s\n", strerror( errno ) ); err = 1; }
+#define rread_err()						{ log_err( __FILE__, __LINE__, "unable to read remote file\n" ); err = 1; }
+#define rwrite_err()					{ log_err( __FILE__, __LINE__, "unable to write to remote file\n" ); err = 1; }
+#define unknown_err()					{ log_err( __FILE__, __LINE__, "an unrecoverable error has occurred\n" ); err = 1; }
+#define open_err( in_file )				{ log_err( __FILE__, __LINE__, "open error: %s %s\n", ( in_file ), strerror( errno ) ); err = 1; }
+#define chdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to change to directory %s: %s\n", ( in_dir ), strerror( errno ) ); err = 1; }
+#define mkdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to create directory %s: %s\n", ( in_dir ), strerror( errno ) ); err = 1; }
+#define ropen_err( in_file )			{ log_err( __FILE__, __LINE__, "unable to open remote file %s\n", ( in_file ) ); err = 1; }
+#define rchdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to change to remote directory %s\n", ( in_dir ) ); err = 1; }
+#define rmkdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to create remote directory %s\n", ( in_dir ) ); err = 1; }
+#define misc_err( in_format, a, b, c )	{ log_err( __FILE__, __LINE__, ( in_format ), ( a ), ( b ), ( c ) ); err = 1; }
 
 
 #ifndef min
@@ -614,7 +637,7 @@ typedef struct write_tree_context {
 } write_tree_context;
 
 
-int log_err( const char *in_format, ... );
+int log_err( const char *in_file, int in_line, const char *in_format, ... );
 void avl_rotate_left( dir_node_avl **in_root );
 void avl_rotate_right( dir_node_avl **in_root );
 int avl_compare_key( char *in_lhs, char *in_rhs );
@@ -647,6 +670,7 @@ int calculate_directory_size( dir_node_avl *in_avl, unsigned long *out_size, lon
 int calculate_directory_requirements( dir_node_avl *in_avl, void *in_context, int in_depth );
 int calculate_directory_offsets( dir_node_avl *in_avl, unsigned long *io_context, int in_depth );
 int write_dir_start_and_file_positions( dir_node_avl *in_avl, wdsafp_context *io_context, int in_depth );
+int write_volume_descriptors( int in_xiso, unsigned long in_total_sectors );
 
 #if DEBUG
 void write_sector( int in_xiso, xoff_t in_start, char *in_name, char *in_extension );
@@ -904,14 +928,14 @@ int main( int argc, char **argv ) {
 						if ( err ) { err = 0; free( buf ); continue; }
 					}
 					if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path, true );
-					if ( ! err && delete && unlink( buf ) == -1 ) log_err( "unable to delete %s\n", buf );
+					if ( ! err && delete && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s\n", buf );
 					
 					if ( buf ) free( buf );
 				} else {
 					if ( burn && ! optimized ) {
 						if ( s_quiet ) misc_err( "refusing to burn a non-optimized xiso in quiet mode\n", 0, 0, 0 );
 						if ( ! err ) {
-							exiso_log( "%s is not optimized!!\n" );
+							exiso_log( "%s is not optimized!!\n", argv[ i ] );
 							exiso_log( "... you should rewrite it with the -r option before you burn it.\n" );
 							exiso_log( "\ncontinue burn [y/N]? " );
 							
@@ -961,17 +985,28 @@ int main( int argc, char **argv ) {
 }
 
 
-int log_err( const char *in_format, ... ) {
+int log_err( const char *in_file, int in_line, const char *in_format, ... ) {
 	va_list			ap;
+	char		   *format;
 	int				ret;
+
+#if DEBUG
+	asprintf( &format, "%s:%u %s", in_file, in_line, in_format );
+#else
+	format = (char *) in_format;
+#endif
 	
 	if ( s_real_quiet ) ret = 0;
 	else {
 		va_start( ap, in_format );
-		ret = vfprintf( stderr, in_format, ap );
+		ret = vfprintf( stderr, format, ap );
 		va_end( ap );
 	}
-	
+
+#if DEBUG
+	free( format );
+#endif
+
 	return ret;
 }
 
@@ -993,8 +1028,8 @@ int verify_xiso( int in_xiso, unsigned long *out_root_dir_sector, unsigned long 
 	if ( ! err && read( in_xiso, out_root_dir_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) read_err();
 	if ( ! err && read( in_xiso, out_root_dir_size, XISO_DIRTABLE_SIZE ) != XISO_DIRTABLE_SIZE ) read_err();
 
-	big32( *out_root_dir_sector );
-	big32( *out_root_dir_size );
+	little32( *out_root_dir_sector );
+	little32( *out_root_dir_size );
 	
 	// seek to header tail and verify media tag
 	if ( ! err && lseek( in_xiso, (xoff_t) XISO_FILETIME_SIZE + XISO_UNUSED_SIZE, SEEK_CUR ) == -1 ) seek_err();
@@ -1114,14 +1149,14 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	}
 	if ( ! err && write( xiso, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) write_err();
 	if ( ! err ) {
-		big32( root.start_sector );
+		little32( root.start_sector );
 		if ( write( xiso, &root.start_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) write_err();
-		big32( root.start_sector );
+		little32( root.start_sector );
 	}
 	if ( ! err ) {
-		big32( root.file_size );
+		little32( root.file_size );
 		if ( write( xiso, &root.file_size, XISO_DIRTABLE_SIZE ) != XISO_DIRTABLE_SIZE ) write_err();
-		big32( root.file_size );
+		little32( root.file_size );
 	}
 	if ( ! err ) {
 		if ( in_root ) {
@@ -1156,6 +1191,8 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 	if ( ! err && ( pos = lseek( xiso, (xoff_t) 0, SEEK_END ) ) == -1 ) seek_err();
 	if ( ! err && write( xiso, buf, i = (int) (( XISO_FILE_MODULUS - pos % XISO_FILE_MODULUS ) % XISO_FILE_MODULUS) ) != i ) write_err();
+
+	if ( ! err ) err = write_volume_descriptors( xiso, ( pos + (xoff_t) i ) / XISO_SECTOR_SIZE );
 
 	if ( ! err && lseek( xiso, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
 	if ( ! err && write( xiso, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) write_err();
@@ -1315,7 +1352,7 @@ int traverse_xiso( int in_xiso, dir_node *in_dir_node, xoff_t in_dir_start, char
 
 read_entry:
 
-	if ( ! err && read( in_xiso, &tmp, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) read_err();
+    if ( ! err && read( in_xiso, &tmp, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) read_err();
 
 	if ( ! err ) {
 		if ( tmp == XISO_PAD_SHORT ) {
@@ -1335,10 +1372,10 @@ read_entry:
 	if ( ! err && read( in_xiso, &dir->filename_length, XISO_FILENAME_LENGTH_SIZE ) != XISO_FILENAME_LENGTH_SIZE ) read_err();
 
 	if ( ! err ) {
-		big16( l_offset );
-		big16( dir->r_offset );
-		big32( dir->file_size );
-		big32( dir->start_sector );
+		little16( l_offset );
+		little16( dir->r_offset );
+		little32( dir->file_size );
+		little32( dir->start_sector );
 
 		if ( ( dir->filename = (char *) malloc( dir->filename_length + 1 ) ) == nil ) mem_err();
 	}
@@ -1467,12 +1504,6 @@ left_processed:
 #endif
 
 
-// Please do not use my boyer moore or avl code to cheat on your
-// homework.  Figure it out for yourself and you might learn to
-// be a decent programmer (in 05.14.03)!
-//
-// If you are really stuck on the avl stuff then read through my code, look at an algorithms
-// book and then try and write avl_remove.  That'll give you an idea for how it all works.
 dir_node_avl *avl_fetch( dir_node_avl *in_root, char *in_filename ) {
 	int				result;
 
@@ -1657,9 +1688,6 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 #endif
 
 
-// Please do not use my boyer moore or avl code to cheat on your
-// homework.  Figure it out for yourself and you might learn to
-// be a decent programmer (in 05.14.03)!
 int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size ) {
 	long			i, j, k, *backup, err = 0;
 
@@ -1784,7 +1812,7 @@ int open_ftp_connection( char *in_host, char *in_user, char *in_password, FTP **
 
 	if ( FtpLogin( out_ftp, in_host, in_user, in_password, nil ) < 0 ) err = 1;
 	if ( ! err && FtpBinary( *out_ftp ) < 0 ) err = 1;
-
+	
 	exiso_log( "%s\n", err ? "failed!" : "[OK]" );
 
 	if ( err && s_quiet ) misc_err( "unable to exiso_log in to ftp server %s\n", in_host, 0, 0 );
@@ -1931,14 +1959,14 @@ int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
 	unsigned short		l_offset, r_offset;
 	char				length = strlen( in_avl->filename ), attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC, sector[ XISO_SECTOR_SIZE ];
 		
-	big32( in_avl->file_size );
-	big32( in_avl->start_sector );
+	little32( in_avl->file_size );
+	little32( in_avl->start_sector );
 	
 	l_offset = (unsigned short) (in_avl->left ? in_avl->left->offset / XISO_DWORD_SIZE : 0);
 	r_offset = (unsigned short) (in_avl->right ? in_avl->right->offset / XISO_DWORD_SIZE : 0);
 	
-	big16( l_offset );
-	big16( r_offset );
+	little16( l_offset );
+	little16( r_offset );
 	
 	memset( sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE );
 	
@@ -1952,8 +1980,8 @@ int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
 	if ( ! err && write( in_xiso, &length, XISO_FILENAME_LENGTH_SIZE ) != XISO_FILENAME_LENGTH_SIZE ) write_err();
 	if ( ! err && write( in_xiso, in_avl->filename, length ) != length ) write_err();
 	
-	big32( in_avl->start_sector );
-	big32( in_avl->file_size );
+	little32( in_avl->start_sector );
+	little32( in_avl->file_size );
 	
 	return err;	
 }
@@ -2072,7 +2100,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 			} else if ( S_ISREG( sb.st_mode ) ) {
 				empty_dir = false;
 				if ( sb.st_size > ULONG_MAX ) {
-					log_err( "file %s is too large for xiso, skipping...\n", avl->filename );
+					log_err( __FILE__, __LINE__, "file %s is too large for xiso, skipping...\n", avl->filename );
 					free( avl->filename );
 					free( avl );
 					continue;
@@ -2177,14 +2205,60 @@ FILE_TIME *alloc_filetime_now( void ) {
 		ft->h = (unsigned long) ( tmp * ( 1.0 / ( 4.0 * (double) ( 1 << 30 ) ) ) );
 		ft->l = (unsigned long) ( tmp - ( (double) ft->h ) * 4.0 * (double) ( 1 << 30 ) );
 		
-		big32( ft->h );		// convert to little endian here because this is a PC only struct and we won't read it anyway
-		big32( ft->l );
+		little32( ft->h );		// convert to little endian here because this is a PC only struct and we won't read it anyway
+		little32( ft->l );
 	} else if ( ft ) {
 		free( ft );
 		ft = nil;
 	}
 	
 	return ft;
+}
+
+// Found the CD-ROM layout in ECMA-119.  Now burning software should correctly
+// detect the format of the xiso and burn it correctly without the user having
+// to specify sector sizes and so on.	in 10.29.04
+
+#define ECMA_119_DATA_AREA_START			0x8000
+#define ECMA_119_VOLUME_SPACE_SIZE			( ECMA_119_DATA_AREA_START + 80 )
+#define ECMA_119_VOLUME_SET_SIZE			( ECMA_119_DATA_AREA_START + 120 )
+#define ECMA_119_VOLUME_SET_IDENTIFIER		( ECMA_119_DATA_AREA_START + 190 )
+#define ECMA_119_VOLUME_CREATION_DATE		( ECMA_119_DATA_AREA_START + 813 )
+
+
+// write_volume_descriptors() assumes that the iso file block from offset
+// 0x8000 to 0x8808 has been zeroed prior to entry.
+
+int write_volume_descriptors( int in_xiso, unsigned long in_total_sectors ) {
+	int				big, err = 0, little;
+	char			date[] = "0000000000000000";
+	char			spaces[ ECMA_119_VOLUME_CREATION_DATE - ECMA_119_VOLUME_SET_IDENTIFIER ];
+
+	big = little = in_total_sectors;
+	
+	big32( big );
+	little32( little );
+
+	memset( spaces, 0x20, sizeof(spaces) );
+	
+	if ( lseek( in_xiso, ECMA_119_DATA_AREA_START, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && write( in_xiso, "\x01" "CD001\x01", 7 ) == -1 ) write_err();
+	if ( ! err && lseek( in_xiso, ECMA_119_VOLUME_SPACE_SIZE, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && write( in_xiso, &little, 4 ) == -1 ) write_err();
+	if ( ! err && write( in_xiso, &big, 4 ) == -1 ) write_err();
+	if ( ! err && lseek( in_xiso, ECMA_119_VOLUME_SET_SIZE, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && write( in_xiso, "\x01\x00\x00\x01\x01\x00\x00\x01\x00\x08\x08\x00", 12 ) == -1 ) write_err();
+	if ( ! err && lseek( in_xiso, ECMA_119_VOLUME_SET_IDENTIFIER, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && write( in_xiso, spaces, sizeof(spaces) ) == -1 ) write_err();
+	if ( ! err && write( in_xiso, date, sizeof(date) ) == -1 ) write_err();
+	if ( ! err && write( in_xiso, date, sizeof(date) ) == -1 ) write_err();
+	if ( ! err && write( in_xiso, date, sizeof(date) ) == -1 ) write_err();
+	if ( ! err && write( in_xiso, date, sizeof(date) ) == -1 ) write_err();
+	if ( ! err && write( in_xiso, "\x01", 1 ) == -1 ) write_err();
+	if ( ! err && lseek( in_xiso, ECMA_119_DATA_AREA_START + XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && write( in_xiso, "\xff" "CD001\x01", 7 ) == -1 ) write_err();
+		
+	return err;
 }
 
 
