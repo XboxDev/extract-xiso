@@ -60,7 +60,12 @@ STATUS FtpStat(FTP *ftp, char *patern, FTP_STAT **first)
 
 	if ( ( tmp2 = strdup( tmp ) ) == NULL ) {
 		errno = ENOMEM;
+#if ! defined( _WIN32 )
 		unlink( tmp );
+#else
+		_unlink( tmp );
+#endif
+
 		return EXIT( ftp, LQUIT );
 	}
 
@@ -70,7 +75,11 @@ STATUS FtpStat(FTP *ftp, char *patern, FTP_STAT **first)
     FtpRetr(ftp,sys_unix?"LIST -d %s":"LIST %s",patern,tmp);
   
   if ( (in=fopen(tmp,"r")) == NULL) {
+#if ! defined( _WIN32 )
 	unlink( tmp );
+#else
+	_unlink( tmp );
+#endif
 	return EXIT(ftp,LQUIT);
   }
 

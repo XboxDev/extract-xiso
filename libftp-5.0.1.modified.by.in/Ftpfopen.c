@@ -12,9 +12,6 @@ Commercial  usage is  also  possible  with  participation of it's author.
 
 */
 
-#ifdef __DARWIN__
-	#include <pthread.h>
-#endif
 
 #include "FtpLibrary.h"
 
@@ -22,31 +19,19 @@ Commercial  usage is  also  possible  with  participation of it's author.
 enum {T_EMPTY=0,T_FILE,T_STREAM,T_PIPE,T_FULL};
 
 
-#ifdef __DARWIN__
-	struct fds_node {
-		FILE			   *file;
-		int					type;
-		struct fds_node	   *next;
-	};
-	
-	
-	static struct fds_node	   *s_fds;
-	static pthread_mutex_t		s_fds_mutex;
-#endif
+struct fds_node {
+	FILE			   *file;
+	int					type;
+	struct fds_node	   *next;
+};
+
+
+static struct fds_node	   *s_fds;
 
 
 void add_fds_node( FILE *in_file, int in_type ) {
-#ifdef __DARWIN__
 	struct fds_node	  **p;
-	static int init = 0;
-	
-	if ( ! init ) {
-		pthread_mutex_init( &s_fds_mutex, nil );
-		init = 1;
-	}
-	
-	pthread_mutex_lock( &s_fds_mutex );
-	
+
 	for ( p = &s_fds; *p && (*p)->file != in_file; p = &(*p)->next ) ;
 
 	if ( ! *p ) {	
@@ -56,19 +41,13 @@ void add_fds_node( FILE *in_file, int in_type ) {
 		(*p)->type = in_type;
 		(*p)->next = nil;
 	}
-	
-	pthread_mutex_unlock( &s_fds_mutex );
-#endif
 }
 
 
 int remove_fds_node( FILE *in_file ) {
-#ifdef __DARWIN__
 	struct fds_node	  **p, *q;
 	int					result = -1;
 	
-	pthread_mutex_lock( &s_fds_mutex );
-
 	for ( p = &s_fds; *p && (*p)->file != in_file; p = &(*p)->next ) ;
 	
 	if ( *p ) {
@@ -86,12 +65,7 @@ int remove_fds_node( FILE *in_file ) {
 		free( q );
 	}
 
-	pthread_mutex_unlock( &s_fds_mutex );
-	
 	return result;
-#else
-	return 0;
-#endif
 }
 
 
@@ -136,6 +110,3 @@ int Ftpfclose(FILE *fp)
 {
 	return remove_fds_node( fp );
 }
-
-
-
