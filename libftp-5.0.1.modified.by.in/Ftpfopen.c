@@ -12,7 +12,7 @@ Commercial  usage is  also  possible  with  participation of it's author.
 
 */
 
-#ifndef _WIN32
+#ifdef __DARWIN__
 	#include <pthread.h>
 #endif
 
@@ -22,7 +22,7 @@ Commercial  usage is  also  possible  with  participation of it's author.
 enum {T_EMPTY=0,T_FILE,T_STREAM,T_PIPE,T_FULL};
 
 
-#ifndef _WIN32
+#ifdef __DARWIN__
 	struct fds_node {
 		FILE			   *file;
 		int					type;
@@ -36,7 +36,7 @@ enum {T_EMPTY=0,T_FILE,T_STREAM,T_PIPE,T_FULL};
 
 
 void add_fds_node( FILE *in_file, int in_type ) {
-#ifndef _WIN32
+#ifdef __DARWIN__
 	struct fds_node	  **p;
 	static int init = 0;
 	
@@ -63,7 +63,7 @@ void add_fds_node( FILE *in_file, int in_type ) {
 
 
 int remove_fds_node( FILE *in_file ) {
-#ifndef _WIN32
+#ifdef __DARWIN__
 	struct fds_node	  **p, *q;
 	int					result = -1;
 	

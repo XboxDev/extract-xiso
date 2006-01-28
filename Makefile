@@ -45,7 +45,7 @@ static:
 	@echo "compiling static extract-xiso for ${TARGET_OS}"
 	@echo
 	${MAKE} libftp
-	gcc -O2 -static -o extract-xiso-static -D${TARGET_OS} extract-xiso.c ${LIBFTP_DIR}/libftp.a
+	gcc -O2 -static -o extract-xiso-static -D${TARGET_OS} extract-xiso.c ${LIBFTP_DIR}/libftp.a -lpthread
 	
 debug:
 	@echo "compiling debug extract-xiso for ${TARGET_OS}"
@@ -54,7 +54,7 @@ debug:
 ifeq (${TARGET_OS},__DARWIN__)
 	gcc -g -o extract-xiso -D${TARGET_OS} -DDEBUG extract-xiso.c ${LIBFTP_DIR}/libftp.a -framework CoreFoundation -framework DiscRecording
 else
-	gcc -g -o extract-xiso -D${TARGET_OS} -DDEBUG extract-xiso.c ${LIBFTP_DIR}/libftp.a
+	gcc -g -o extract-xiso -D${TARGET_OS} -DDEBUG extract-xiso.c ${LIBFTP_DIR}/libftp.a -lpthread
 endif
 
 libftp:
