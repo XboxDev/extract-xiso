@@ -90,18 +90,3 @@ $(OBJS): FtpLibrary.h
 
 $(SRCS):
 	$(CO) $@
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

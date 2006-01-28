@@ -12,25 +12,31 @@ Commercial  usage is  also  possible  with  participation of it's author.
 
 */
 
-#include <pthread.h>
+#ifndef _WIN32
+	#include <pthread.h>
+#endif
+
 #include "FtpLibrary.h"
 
 
 enum {T_EMPTY=0,T_FILE,T_STREAM,T_PIPE,T_FULL};
 
 
-struct fds_node {
-	FILE			   *file;
-	int					type;
-	struct fds_node	   *next;
-};
-
-
-static struct fds_node	   *s_fds;
-static pthread_mutex_t		s_fds_mutex;
+#ifndef _WIN32
+	struct fds_node {
+		FILE			   *file;
+		int					type;
+		struct fds_node	   *next;
+	};
+	
+	
+	static struct fds_node	   *s_fds;
+	static pthread_mutex_t		s_fds_mutex;
+#endif
 
 
 void add_fds_node( FILE *in_file, int in_type ) {
+#ifndef _WIN32
 	struct fds_node	  **p;
 	static int init = 0;
 	
@@ -52,10 +58,12 @@ void add_fds_node( FILE *in_file, int in_type ) {
 	}
 	
 	pthread_mutex_unlock( &s_fds_mutex );
+#endif
 }
 
 
 int remove_fds_node( FILE *in_file ) {
+#ifndef _WIN32
 	struct fds_node	  **p, *q;
 	int					result = -1;
 	
@@ -81,6 +89,9 @@ int remove_fds_node( FILE *in_file ) {
 	pthread_mutex_unlock( &s_fds_mutex );
 	
 	return result;
+#else
+	return 0;
+#endif
 }
 
 

@@ -42,6 +42,7 @@ Commercial  usage is  also  possible  with  participation of it's author.
 #else
 #include <io.h>
 #include <winsock2.h>
+#include <ws2tcpip.h>
 
 #if ! defined( libftp_client ) /* should really separate all this stuff, but I'm tired ... */
 #include "arpa/ftp.h"

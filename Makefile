@@ -14,11 +14,31 @@ endif
 extract-xiso: extract-xiso.c
 	@echo "compiling extract-xiso for ${TARGET_OS}"
 	@echo
+ifeq (${TARGET_OS},__DARWIN__)
+	@echo "NOTE:  If you want to build a universal binary on Mac OS X, do not use this target!"
+	@echo "       Instead, do \"make clean\" then \"make fat\"."
+	@echo "       Additionally, you MUST have the 10.4u SDK installed (XCode >= 2.2.1)."
+	@echo
+endif
 	${MAKE} libftp
 ifeq (${TARGET_OS},__DARWIN__)
 	gcc -O2 ${LD_FLAGS} -o extract-xiso -D${TARGET_OS} extract-xiso.c ${LIBFTP_DIR}/libftp.a -framework CoreFoundation -framework DiscRecording
 else
 	gcc -O2 ${LD_FLAGS} -o extract-xiso -D${TARGET_OS} extract-xiso.c ${LIBFTP_DIR}/libftp.a
+endif
+
+ifeq (${TARGET_OS},__DARWIN__)
+fat:
+	@echo "compiling extract-xiso as universal binary for ${TARGET_OS}"
+	@echo
+	${MAKE} -C ${LIBFTP_DIR} clean
+	CFLAGS="-I. -O2 -D${TARGET_OS} -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch ppc -mtune=G5" ${MAKE} -C ${LIBFTP_DIR}
+	gcc -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch ppc -mtune=G5 -O2 ${LD_FLAGS} -o extract-xiso.ppc -D${TARGET_OS} extract-xiso.c ${LIBFTP_DIR}/libftp.a -framework CoreFoundation -framework DiscRecording
+	${MAKE} -C ${LIBFTP_DIR} clean
+	CFLAGS="-I. -O2 -D${TARGET_OS} -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch i386 -mtune=pentium4" ${MAKE} -C ${LIBFTP_DIR}
+	gcc -isysroot /Developer/SDKs/MacOSX10.4u.sdk -arch i386 -mtune=pentium4 -O2 ${LD_FLAGS} -o extract-xiso.i386 -D${TARGET_OS} extract-xiso.c ${LIBFTP_DIR}/libftp.a -framework CoreFoundation -framework DiscRecording
+	lipo -create extract-xiso.ppc extract-xiso.i386 -output extract-xiso
+	rm -f extract-xiso.ppc extract-xiso.i386
 endif
 
 static:
@@ -47,9 +67,7 @@ libftp-debug:
 
 clean:
 	${MAKE} -C ${LIBFTP_DIR} clean
-	rm -f extract-xiso
-	rm -f extract-xiso-static
-	rm -f .gdb_history
+	rm -f .gdb_history extract-xiso extract-xiso-static extract-xiso.ppc extract-xiso.i386
 
 dist:
 	${MAKE} clean

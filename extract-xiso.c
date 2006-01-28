@@ -210,6 +210,10 @@
 						
 						Bleh! This code is ugly ;-)
 
+		10.25.05 in:	Added in  patch from Nordman.  Thanks.
+						Added in security patch from Chris Bainbridge.  Thanks.
+						Fixed a few minor bugs.
+
 	enjoy!
 	
 	in
@@ -335,6 +339,7 @@
 	#define lseek						_lseeki64
 	#define mkdir( a, b )				mkdir( a )
 
+	typedef __int32						int32_t;
     typedef __int64                     xoff_t;
 #else
 	#error unknown target, cannot compile!
@@ -574,7 +579,7 @@ typedef enum bm_constants { k_default_alphabet_size = 256 } bm_constants;
 typedef enum modes { k_generate_avl, k_extract, k_upload, k_list, k_rewrite, k_burn } modes;
 typedef enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 } errors;
 
-typedef void (*progress_callback)( int in_current_value, int in_final_value );
+typedef void (*progress_callback)( xoff_t in_current_value, xoff_t in_final_value );
 typedef int (*traversal_callback)( void *in_node, void *in_context, long in_depth );
 
 typedef struct dir_node dir_node;
@@ -655,7 +660,7 @@ int free_dir_node_avl( void *in_dir_node_avl, void *, long );
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode );
 int open_ftp_connection( char *in_host, char *in_user, char *in_password, FTP **out_ftp );
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path, bool in_ll_compat );
-int verify_xiso( int in_xiso, unsigned long *out_root_dir_sector, unsigned long *out_root_dir_size, char *in_iso_name );
+int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name );
 int traverse_xiso( int in_xiso, dir_node *in_dir_node, xoff_t in_dir_start, char *in_path, modes in_mode, dir_node_avl **in_root, bool in_ll_compat );
 int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback );
 
@@ -855,7 +860,7 @@ int main( int argc, char **argv ) {
 			char			*tmp = nil;
 
 			if ( p->name ) {
-				for ( i = strlen( p->name ); i >= 0 && p->name[ i ] != PATH_CHAR; --i ) ; ++i;
+				for ( i = (int) strlen( p->name ); i >= 0 && p->name[ i ] != PATH_CHAR; --i ) ; ++i;
 
 				if ( i ) {
 					if ( ( tmp = (char *) malloc( i + 1 ) ) == nil ) mem_err();
@@ -893,7 +898,7 @@ int main( int argc, char **argv ) {
 				tmp[ 1 ] = tmp[ 0 ];
 				tmp[ 0 ] = '/';
 
-				for ( i = 2, n = strlen( tmp ); i < n; ++i ) if ( tmp[ i ] == '\\' ) tmp[ i ] = '/';
+				for ( i = 2, n = (int) strlen( tmp ); i < n; ++i ) if ( tmp[ i ] == '\\' ) tmp[ i ] = '/';
 			}
 			if ( ! err && FtpChdir( s_ftp, tmp ) < 0 ) rchdir_err( tmp );
 			if ( tmp ) free( tmp );
@@ -1016,7 +1021,7 @@ int log_err( const char *in_file, int in_line, const char *in_format, ... ) {
 #endif
 
 
-int verify_xiso( int in_xiso, unsigned long *out_root_dir_sector, unsigned long *out_root_dir_size, char *in_iso_name ) {
+int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name ) {
 	int				err = 0;
 	char			buffer[ XISO_HEADER_DATA_LENGTH ];
 
@@ -1074,12 +1079,12 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 					in_root_directory[ 1 ] = in_root_directory[ 0 ];
 					in_root_directory[ 0 ] = '/';
 
-					for ( i = 2, n = strlen( in_root_directory ); i < n; ++i ) if ( in_root_directory[ i ] == '\\' ) in_root_directory[ i ] = '/';
+					for ( i = 2, n = (int) strlen( in_root_directory ); i < n; ++i ) if ( in_root_directory[ i ] == '\\' ) in_root_directory[ i ] = '/';
 				}
 				if ( FtpChdir( s_ftp, in_root_directory ) < 0 ) rchdir_err( in_root_directory );
 			}
 			if ( ! err ) {
-				if ( in_root_directory[ i = strlen( in_root_directory ) - 1 ] == '/' || in_root_directory[ i ] == '\\' ) in_root_directory[ i-- ] = 0;
+				if ( in_root_directory[ i = (int) strlen( in_root_directory ) - 1 ] == '/' || in_root_directory[ i ] == '\\' ) in_root_directory[ i-- ] = 0;
 				for ( iso_dir = &in_root_directory[ i ]; iso_dir >= in_root_directory && *iso_dir != PATH_CHAR; --iso_dir ) ; ++iso_dir;
 
 				iso_name = in_name ? in_name : iso_dir;
@@ -1091,7 +1096,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ! err ) {
 		if ( ! *iso_dir ) iso_dir = PATH_CHAR_STR;
 		if ( ! in_output_directory ) in_output_directory = cwd;
-		if ( in_output_directory[ i = strlen( in_output_directory ) - 1 ] == PATH_CHAR ) in_output_directory[ i-- ] = 0;
+		if ( in_output_directory[ i = (int) strlen( in_output_directory ) - 1 ] == PATH_CHAR ) in_output_directory[ i-- ] = 0;
 		if ( ! iso_name || ! *iso_name ) iso_name = "root";
 		else if ( iso_name[ 1 ] == ':' ) { iso_name[ 1 ] = iso_name[ 0 ]; ++iso_name; }
 #if defined( _WIN32 )
@@ -1225,14 +1230,14 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path, bool in_ll_compat ) {
 	dir_node_avl		   *root = nil;
 	bool					repair = false;
-	unsigned long			root_dir_sect, root_dir_size;
+	int32_t					root_dir_sect, root_dir_size;
 	int						xiso, err = 0, len, path_len = 0, add_slash = 0;
 	char				   *buf, *cwd = nil, *name = nil, *short_name = nil, *iso_name;
 
 	if ( ( xiso = open( in_xiso, READFLAGS, 0 ) ) == -1 ) open_err( in_xiso );
 	
 	if ( ! err ) {
-		len = strlen( in_xiso );
+		len = (int) strlen( in_xiso );
 	
 		if ( in_mode == k_rewrite ) {
 			in_xiso[ len -= 4 ] = 0;
@@ -1241,7 +1246,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	
 		for ( name = &in_xiso[ len ]; name >= in_xiso && *name != PATH_CHAR; --name ) ; ++name;
 
-		len = strlen( name );
+		len = (int) strlen( name );
 
 		// create a directory of the same name as the file we are working on, minus the ".iso" portion
 		if ( len > 4 && name[ len - 4 ] == '.' && ( name[ len - 3 ] | 0x20 ) == 'i' && ( name[ len - 2 ] | 0x20 ) == 's' && ( name[ len - 1 ] | 0x20 ) == 'o' ) {
@@ -1278,7 +1283,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	
 	if ( ! err && root_dir_sect && root_dir_size ) {						
 		if ( in_path ) {
-			path_len = strlen( in_path );
+			path_len = (int) strlen( in_path );
 			if ( in_path[ path_len - 1 ] != PATH_CHAR ) ++add_slash;
 		}
 		
@@ -1359,7 +1364,7 @@ read_entry:
 			l_offset = l_offset * XISO_DWORD_SIZE + ( XISO_SECTOR_SIZE - ( l_offset * XISO_DWORD_SIZE ) % XISO_SECTOR_SIZE );
 			err = lseek( in_xiso, in_dir_start + (xoff_t) l_offset, SEEK_SET ) == -1 ? 1 : 0;
 		
-			if ( ! err ) goto read_entry;		// ph33r the goto WOOHAHAHAHAHAHA!!
+			if ( ! err ) goto read_entry;		// me and my silly comments
 		} else {
 			l_offset = tmp;
 		}
@@ -1383,6 +1388,11 @@ read_entry:
 	if ( ! err ) {
 		if ( read( in_xiso, dir->filename, dir->filename_length ) != dir->filename_length ) read_err();
 		if ( ! err ) dir->filename[ dir->filename_length ] = 0;
+		// security patch (Chris Bainbridge)
+		if ( strstr( dir->filename, ".." ) || strchr( dir->filename, '/' ) || strchr( dir->filename, '\\' ) ) {
+			fprintf( stderr, "filename contains invalid character(s), aborting." );
+			exit( 1 );
+		}
 	}
 	
 	if ( ! err && in_mode == k_generate_avl ) {
@@ -1900,7 +1910,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		if ( ! err ) {
 			exiso_log( "adding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
 
-			if ( s_media_enable && ( i = strlen( in_avl->filename ) ) >= 4 && in_avl->filename[ i - 4 ] == '.' && ( in_avl->filename[ i - 3 ] | 0x20 ) == 'x' && ( in_avl->filename[ i - 2 ] | 0x20 ) == 'b' && ( in_avl->filename[ i - 1 ] | 0x20 ) == 'e' ) {
+			if ( s_media_enable && ( i = (int) strlen( in_avl->filename ) ) >= 4 && in_avl->filename[ i - 4 ] == '.' && ( in_avl->filename[ i - 3 ] | 0x20 ) == 'x' && ( in_avl->filename[ i - 2 ] | 0x20 ) == 'b' && ( in_avl->filename[ i - 1 ] | 0x20 ) == 'e' ) {
 				for ( bytes = in_avl->file_size, i = 0; ! err && bytes; ) {
 					if ( s_ftp ) { if ( ( n = FtpReadBlock( s_ftp, buf + i, min( bytes, size - i ) ) ) < 0 ) rread_err(); }
 					else { if ( ( n = read( fd, buf + i, min( bytes, size - i ) ) ) == -1 ) read_err(); }
@@ -1957,7 +1967,7 @@ int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
 	xoff_t				pos;
 	int					err = 0, pad;
 	unsigned short		l_offset, r_offset;
-	char				length = strlen( in_avl->filename ), attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC, sector[ XISO_SECTOR_SIZE ];
+	char				length = (char) strlen( in_avl->filename ), attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC, sector[ XISO_SECTOR_SIZE ];
 		
 	little32( in_avl->file_size );
 	little32( in_avl->start_sector );
@@ -2078,7 +2088,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 
 		for ( i = *io_n; i; --i ) exiso_log( "\b" );
 		exiso_log( "%s", p->d_name );
-		for ( j = i = strlen( p->d_name ); j < *io_n; ++j ) exiso_log( " " );
+		for ( j = i = (int) strlen( p->d_name ); j < *io_n; ++j ) exiso_log( " " );
 		for ( j = i; j < *io_n; ++j ) exiso_log( "\b" );
 		*io_n = i;
 		flush();
@@ -2144,7 +2154,7 @@ int generate_avl_tree_remote( dir_node_avl **out_root, int *io_n ) {
 
 		for ( i = *io_n; i; --i ) exiso_log( "\b" );
 		exiso_log( "%s", p->name );
-		for ( j = i = strlen( p->name ); j < *io_n; ++j ) exiso_log( " " );
+		for ( j = i = (int) strlen( p->name ); j < *io_n; ++j ) exiso_log( " " );
 		for ( j = i; j < *io_n; ++j ) exiso_log( "\b" );
 		*io_n = i;
 		flush();
