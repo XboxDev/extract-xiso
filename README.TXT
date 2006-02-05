@@ -2,6 +2,10 @@ extract-xiso v2.5
 
 Added a few patches from sourceforge, fixed some bugs.
 
+NOTE:  I've added some documentation to the project page on sourceforge.
+       Please look there to read about commonly used commands, it'll be
+       worth your time to do so!
+
 extract-xiso v2.4b2 by in:
 
 Fixed some buffering problems in the ftp library and added beta support for
