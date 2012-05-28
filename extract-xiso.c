@@ -20,7 +20,7 @@
 	If you want to help out with this project it would be welcome, just email me at
 	in@fishtank.com.
 
-	This code is copyright in@fishtank.com and is licensed under a slightly modifified
+	This code is copyright in@fishtank.com and is licensed under a slightly modified
 	version of the Berkeley Software License, which follows:
 
 	/*
@@ -235,7 +235,7 @@
 #include <sys/types.h>
 
 
-#if defined( __FREEBSD__ )
+#if defined( __FREEBSD__ ) || defined( __OPENBSD__ )
 	#include <machine/limits.h>
 #endif
 
@@ -274,14 +274,14 @@
 
 
 #if defined( __DARWIN__ )
-	#define exiso_target				"macos-x"
+	#define exiso_target				"mac os x"
 
 	#define PATH_CHAR					'/'
 	#define PATH_CHAR_STR				"/"
 
 	// I'm not planning on distributing the cd-burning code on darwin, so BURN_ENABLED is 0
 	#define BURN_ENABLED				0
-
+	#define FORCE_ASCII					1
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
 	#define READWRITEFLAGS				O_RDWR
@@ -294,7 +294,7 @@
 	#define PATH_CHAR_STR				"/"
 	
 	#define BURN_ENABLED				0
-	
+	#define FORCE_ASCII					1
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
 	#define READWRITEFLAGS				O_RDWR
@@ -307,7 +307,7 @@
 	#define PATH_CHAR_STR				"/"
 	
 	#define BURN_ENABLED				0
-	
+	#define FORCE_ASCII					0
 	#define READFLAGS					O_RDONLY | O_LARGEFILE
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE
 	#define READWRITEFLAGS				O_RDWR | O_LARGEFILE
@@ -316,14 +316,16 @@
 	#define stat						stat64
 	
 	typedef __off64_t					xoff_t;
+#elif defined( __OPENBSD__ )
+	#define exiso_target				"openbsd"
 #elif defined( _WIN32 )
-	#define exiso_target				"win32"
+	#define exiso_target				"windows"
 
 	#define PATH_CHAR					'\\'
 	#define PATH_CHAR_STR				"\\"
 	
 	#define BURN_ENABLED				0
-		
+	#define FORCE_ASCII					0
 	#define READFLAGS					O_RDONLY | O_BINARY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_BINARY
 	#define READWRITEFLAGS				O_RDWR   | O_BINARY
@@ -395,7 +397,7 @@
 #endif
 
 
-#define exiso_version					"2.5 (10.25.05)"
+#define exiso_version					"2.6 (02.14.06)"
 #define VERSION_LENGTH					14
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
@@ -695,6 +697,7 @@ static bool								s_real_quiet = false;
 static bool								s_media_enable = true;
 static xoff_t							s_total_bytes_all_isos = 0;
 static int								s_total_files_all_isos = 0;
+static bool								s_warned = 0;
 
 
 #if BURN_ENABLED
@@ -970,6 +973,7 @@ int main( int argc, char **argv ) {
 	}
 	
 	if ( ! err && isos > 1  && ! burn ) exiso_log( "\n%u files in %u xiso's total %llu bytes\n", s_total_files_all_isos, isos, s_total_bytes_all_isos );
+	if ( s_warned ) exiso_log( "\nWARNING:  Warning(s) were issued during execution--review stderr!\n" );
 	
 	if ( s_ftp ) FtpBye( s_ftp );
 	
@@ -1387,11 +1391,14 @@ read_entry:
 	
 	if ( ! err ) {
 		if ( read( in_xiso, dir->filename, dir->filename_length ) != dir->filename_length ) read_err();
-		if ( ! err ) dir->filename[ dir->filename_length ] = 0;
-		// security patch (Chris Bainbridge)
-		if ( strstr( dir->filename, ".." ) || strchr( dir->filename, '/' ) || strchr( dir->filename, '\\' ) ) {
-			fprintf( stderr, "filename contains invalid character(s), aborting." );
-			exit( 1 );
+		if ( ! err ) {
+			dir->filename[ dir->filename_length ] = 0;
+	
+			// security patch (Chris Bainbridge), modified by in to support "...", etc. 02.14.06 (in)
+			if ( ! strcmp( dir->filename, "." ) || ! strcmp( dir->filename, ".." ) || strchr( dir->filename, '/' ) || strchr( dir->filename, '\\' ) ) {
+				log_err( __FILE__, __LINE__, "filename '%s' contains invalid character(s), aborting.", dir->filename );
+				exit( 1 );
+			}
 		}
 	}
 	
@@ -1769,10 +1776,24 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 
 
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode ) {
-	int				out;
-	unsigned long	i, size;
-	int				err = 0;
-	bool			ftp_open = false;
+	char					c;
+	int						err = 0;
+	bool					ftp_open = false, warn = false;
+	unsigned long			i, size;
+	int						out;
+
+	// in 02.14.06:  force filename to contain only ASCII characters
+	for ( i = 0; ( c = in_file->filename[ i ] ); ++i ) {
+		if ( c & 0x80 ) {
+#if FORCE_ASCII
+			in_file->filename[ i ] = '?';
+#endif
+			warn = true;
+			s_warned = true;
+		}
+	}
+
+	if ( warn ) log_err( __FILE__, __LINE__, "WARNING: file \"%s\" contains non-ASCII character(s) [each instance has been mapped to a literal '?' character].\n", in_file->filename );
 
 	if ( in_mode == k_extract ) {
 		if ( ( out = open( in_file->filename, WRITEFLAGS, 0644 ) ) == -1 ) open_err( in_file->filename );

@@ -27,6 +27,7 @@ struct fds_node {
 
 
 static struct fds_node	   *s_fds;
+static pthread_mutex_t		s_fds_mutex;
 
 
 void add_fds_node( FILE *in_file, int in_type ) {
