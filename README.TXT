@@ -1,3 +1,25 @@
+extract-xiso v2.7.1 
+
+integration of somsky's and Aiyyo's improvements
+minor fixes 
+
+extract-xiso v2.7.0 
+
+Added XGD3 support (somsky)
+
+extract-xiso v2.6.2 
+
+Fix extraction bug (Aiyyo)
+
+extract-xiso v2.6.1 
+
+Fix -l (list files in iso) bug (My mistake).(Aiyyo)
+
+extract-xiso v2.6 
+
+Added new command line switch (-s -> skip $SystemUpdate folder). (Aiyyo)
+Try to create destination directory and display progressbar during the extraction. (Aiyyo)
+
 extract-xiso v2.5
 
 Added a few patches from sourceforge, fixed some bugs.

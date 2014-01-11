@@ -214,6 +214,21 @@
 						Added in security patch from Chris Bainbridge.  Thanks.
 						Fixed a few minor bugs.
 
+		01.18.10 aiyyo:	XBox 360 iso extraction supported.
+
+		10.04.10 aiyyo:	Added new command line switch (-s skip $SystemUpdate folder).
+						Display file progress in percent.
+						Try to create destination directory.
+
+		10.11.10 aiyyo:	Fix -l bug (empty list).
+
+		05.02.11 aiyyo:	Remove security patch.
+
+		09.30.11 somski: Added XGD3 support
+
+		01.11.14 twillecomme: Intégration of aiyyo's and somski's work. 
+						Minor warn fixes.
+
 	enjoy!
 	
 	in
@@ -274,7 +289,7 @@
 
 
 #if defined( __DARWIN__ )
-	#define exiso_target				"mac os x"
+	#define exiso_target				"macos-x"
 
 	#define PATH_CHAR					'/'
 	#define PATH_CHAR_STR				"/"
@@ -319,7 +334,7 @@
 #elif defined( __OPENBSD__ )
 	#define exiso_target				"openbsd"
 #elif defined( _WIN32 )
-	#define exiso_target				"windows"
+	#define exiso_target				"win32"
 
 	#define PATH_CHAR					'\\'
 	#define PATH_CHAR_STR				"\\"
@@ -397,8 +412,8 @@
 #endif
 
 
-#define exiso_version					"2.6 (02.14.06)"
-#define VERSION_LENGTH					14
+#define exiso_version					"2.7.1 (01.11.14)"
+#define VERSION_LENGTH					16
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
 
@@ -443,6 +458,7 @@
     -p <password>       Ftp password (defaults to \"xbox\")\n\
     -q                  Run quiet (suppress all non-error output).\n\
     -Q                  Run silent (suppress all output).\n\
+    -s                  Skip $SystemUpdate folder.\n\
     -u <user name>      Ftp user name (defaults to \"xbox\")\n\
     -v                  Print version information and exit.\n\
 ", banner, argv[ 0 ], argv[ 0 ] );
@@ -481,6 +497,7 @@
                           media enable patching (not recommended).\n\
     -q                  Run quiet (suppress all non-error output).\n\
     -Q                  Run silent (suppress all output).\n\
+    -s                  Skip $SystemUpdate folder.\n\
     -v                  Print version information and exit.\n\
 ", banner, argv[ 0 ], argv[ 0 ] );
 #endif
@@ -510,6 +527,8 @@
 #endif
 
 
+#define GLOBAL_LSEEK_OFFSET       0xFD90000ul
+#define XGD3_LSEEK_OFFSET         0x2080000ul
 
 #define n_sectors( size )				( ( size ) / XISO_SECTOR_SIZE + ( ( size ) % XISO_SECTOR_SIZE ? 1 : 0 ) )
 
@@ -566,9 +585,9 @@
 #define DEBUG_DUMP_DIRECTORY			"/Volumes/c/xbox/iso/exiso"
 
 #if ! defined( NO_FTP )
-#define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Df:hlmp:qQru:vx"
+#define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Df:hlmp:qQrsu:vx"
 #else
-#define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Dhlmp:qQrvx"
+#define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Dhlmp:qQrsvx"
 #endif
 
 
@@ -659,7 +678,7 @@ char *boyer_moore_search( char *in_text, long in_text_len );
 int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size );
 
 int free_dir_node_avl( void *in_dir_node_avl, void *, long );
-int extract_file( int in_xiso, dir_node *in_file, modes in_mode );
+int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
 int open_ftp_connection( char *in_host, char *in_user, char *in_password, FTP **out_ftp );
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path, bool in_ll_compat );
 int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name );
@@ -699,6 +718,10 @@ static xoff_t							s_total_bytes_all_isos = 0;
 static int								s_total_files_all_isos = 0;
 static bool								s_warned = 0;
 
+static bool				                s_remove_systemupdate = false; 
+static char				               *s_systemupdate = "$SystemUpdate"; 
+
+static xoff_t							s_xbox_disc_lseek = 0;
 
 #if BURN_ENABLED
 	#if defined( __DARWIN__ )
@@ -806,6 +829,10 @@ int main( int argc, char **argv ) {
 					exit( 1 );
 				}
 				rewrite = true;
+			} break;
+
+			case 's': {
+				s_remove_systemupdate = true;
 			} break;
 
 			case 'u': {
@@ -960,7 +987,7 @@ int main( int argc, char **argv ) {
 			}
 		}
 		
-		if ( ! err && ! burn ) exiso_log( "\n%u files in %s total %llu bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], s_total_bytes );
+		if ( ! err && ! burn ) exiso_log( "\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], (long long int) s_total_bytes );
 		
 		if ( new_iso_path ) {
 			if ( ! err ) exiso_log( "\n%s successfully rewritten%s%s\n", argv[ i ], path ? " as " : ".", path ? new_iso_path : "" );
@@ -972,7 +999,7 @@ int main( int argc, char **argv ) {
 		if ( err == err_iso_no_files ) err = 0;
 	}
 	
-	if ( ! err && isos > 1  && ! burn ) exiso_log( "\n%u files in %u xiso's total %llu bytes\n", s_total_files_all_isos, isos, s_total_bytes_all_isos );
+	if ( ! err && isos > 1  && ! burn ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
 	if ( s_warned ) exiso_log( "\nWARNING:  Warning(s) were issued during execution--review stderr!\n" );
 	
 	if ( s_ftp ) FtpBye( s_ftp );
@@ -1031,8 +1058,21 @@ int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_di
 
 	if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET, SEEK_SET ) == -1 ) seek_err();
 	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s does not appear to be a valid xbox iso image\n", in_iso_name, 0, 0 );
-	
+	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) 
+	{
+    if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + GLOBAL_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
+    if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
+    if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) {
+    
+      if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XGD3_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
+      if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
+      if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s does not appear to be a valid xbox iso image\n", in_iso_name, 0, 0 )
+      else s_xbox_disc_lseek = XGD3_LSEEK_OFFSET;
+    }
+    else s_xbox_disc_lseek = GLOBAL_LSEEK_OFFSET;
+  }
+  else s_xbox_disc_lseek = 0;
+
 	// read root directory information
 	if ( ! err && read( in_xiso, out_root_dir_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) read_err();
 	if ( ! err && read( in_xiso, out_root_dir_size, XISO_DIRTABLE_SIZE ) != XISO_DIRTABLE_SIZE ) read_err();
@@ -1208,7 +1248,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 	if ( ! in_root ) {
 		if ( err ) { exiso_log( "\ncould not create %s%s\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "" ); }
-		else exiso_log( "\nsucessfully created %s%s (%u files totalling %llu bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
+		else exiso_log( "\nsucessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, (long long int) s_total_bytes );
 	}
 			
 	if ( root.subdirectory != EMPTY_SUBDIRECTORY ) avl_traverse_depth_first( root.subdirectory, free_dir_node_avl, nil, k_postfix, 0 );
@@ -1236,7 +1276,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	bool					repair = false;
 	int32_t					root_dir_sect, root_dir_size;
 	int						xiso, err = 0, len, path_len = 0, add_slash = 0;
-	char				   *buf, *cwd = nil, *name = nil, *short_name = nil, *iso_name;
+	char				   *buf, *cwd = nil, *name = nil, *short_name = nil, *iso_name, *folder = nil;
 
 	if ( ( xiso = open( in_xiso, READFLAGS, 0 ) ) == -1 ) open_err( in_xiso );
 	
@@ -1264,6 +1304,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 
 	if ( ! err && in_mode == k_extract && in_path ) {
 		if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
+		if ( ! err && mkdir( in_path, 0755 ) );
 		if ( ! err && chdir( in_path ) == -1 ) chdir_err( in_path );
 	}
 
@@ -1297,9 +1338,11 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 			sprintf( buf, "%s%s%s%c", in_path ? in_path : "", add_slash && ( ! in_path || in_mode == k_upload ) ? PATH_CHAR_STR : "", in_mode != k_list && ( ! in_path || in_mode == k_upload ) ? iso_name : "", PATH_CHAR );
 
 			if ( in_mode == k_rewrite ) {
-				if ( ! err && lseek( xiso, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
-				if ( ! err ) err = traverse_xiso( xiso, nil, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE, buf, k_generate_avl, &root, in_ll_compat );
-				if ( ! err ) err = create_xiso( iso_name, in_path, root, xiso, out_iso_path, nil, nil );
+	
+	if ( ! err && lseek( xiso, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err ) err = traverse_xiso( xiso, nil, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, buf, k_generate_avl, &root, in_ll_compat );
+	if ( ! err ) err = create_xiso( iso_name, in_path, root, xiso, out_iso_path, nil, nil );
+			
 			} else if ( in_mode == k_burn ) {
 			#if BURN_ENABLED
 				#if __DARWIN__
@@ -1321,8 +1364,8 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 					}
 			#endif
 			} else {
-				if ( ! err && lseek( xiso, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
-				if ( ! err ) err = traverse_xiso( xiso, nil, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE, buf, in_mode, nil, in_ll_compat );
+	      if ( ! err && lseek( xiso, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1) seek_err();
+	      if ( ! err ) err = traverse_xiso( xiso, nil, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, buf, in_mode, nil, in_ll_compat );
 			}
 
 			free( buf );
@@ -1448,11 +1491,13 @@ left_processed:
 			
 				if ( ! err ) {
 					sprintf( path, "%s%s%c", in_path, dir->filename, PATH_CHAR );
-					if ( dir->start_sector && lseek( in_xiso, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
+					if ( dir->start_sector && lseek( in_xiso, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 				}
 			} else path = nil;
 	
 			if ( ! err ) {
+				if ( !s_remove_systemupdate || !strstr( dir->filename, s_systemupdate ) )
+				{
 				if ( in_mode == k_extract ) {
 					if ( ( err = mkdir( dir->filename, 0755 ) ) ) mkdir_err( dir->filename );
 					if ( ! err && dir->start_sector && ( err = chdir( dir->filename ) ) ) chdir_err( dir->filename );
@@ -1462,27 +1507,32 @@ left_processed:
 				}
 				if ( ! err && in_mode != k_list && in_mode != k_generate_avl ) exiso_log( "creating %s (0 bytes) [OK]\n", path );
 			}
+			}
 			
 			if ( ! err && dir->start_sector ) {
 				memcpy( &subdir, dir, sizeof(dir_node) );
 				
 				subdir.parent = nil;
+				if ( ! err && dir->file_size > 0 ) err = traverse_xiso( in_xiso, &subdir, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, path, in_mode, in_mode == k_generate_avl ? &dir->avl_node->subdirectory : nil, in_ll_compat );        
 
-				if ( ! err ) err = traverse_xiso( in_xiso, &subdir, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE, path, in_mode, in_mode == k_generate_avl ? &dir->avl_node->subdirectory : nil, in_ll_compat );
+				if ( !s_remove_systemupdate || !strstr( dir->filename, s_systemupdate ) )
+				{
 	
 				if ( ! err && in_mode == k_extract && ( err = chdir( ".." ) ) ) chdir_err( ".." );
 				if ( ! err && in_mode == k_upload && FtpChdir( s_ftp, ".." ) < 0 ) rchdir_err( ".." );
+			}
 			}
 	
 			if ( path ) free( path );
 		} else if ( in_mode != k_generate_avl ) {
 			if ( ! err ) {
-				exiso_log( "%s%s%s (%u bytes)%s", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", in_path, dir->filename, dir->file_size , in_mode == k_extract || in_mode == k_upload ? " " : "" ); flush();
+				if ( !s_remove_systemupdate || !strstr( in_path, s_systemupdate ) )
+				{
 
 				if ( in_mode == k_extract || in_mode == k_upload ) {
-					err = extract_file( in_xiso, dir, in_mode );
-					if ( ! err ) exiso_log( "[OK]\n" );
+						err = extract_file( in_xiso, dir, in_mode, in_path );
 				} else {
+					exiso_log( "%s%s%s (%lu bytes)%s", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", in_path, dir->filename, dir->file_size , in_mode == k_extract || in_mode == k_upload ? " " : "" ); flush();
 					exiso_log( "\n" );
 				}
 
@@ -1490,6 +1540,7 @@ left_processed:
 				++s_total_files_all_isos;
 				s_total_bytes += dir->file_size;
 				s_total_bytes_all_isos += dir->file_size;
+				}
 			}
 		}
 	}
@@ -1775,25 +1826,19 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 #endif
 
 
-int extract_file( int in_xiso, dir_node *in_file, modes in_mode ) {
+int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 	char					c;
 	int						err = 0;
 	bool					ftp_open = false, warn = false;
-	unsigned long			i, size;
+	unsigned long			i, size, totalsize = 0, totalpercent = 0;
 	int						out;
 
-	// in 02.14.06:  force filename to contain only ASCII characters
-	for ( i = 0; ( c = in_file->filename[ i ] ); ++i ) {
-		if ( c & 0x80 ) {
-#if FORCE_ASCII
-			in_file->filename[ i ] = '?';
-#endif
-			warn = true;
-			s_warned = true;
+	if ( s_remove_systemupdate && strstr( path, s_systemupdate ) )
+	{
+		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 		}
-	}
-
-	if ( warn ) log_err( __FILE__, __LINE__, "WARNING: file \"%s\" contains non-ASCII character(s) [each instance has been mapped to a literal '?' character].\n", in_file->filename );
+	else
+	{
 
 	if ( in_mode == k_extract ) {
 		if ( ( out = open( in_file->filename, WRITEFLAGS, 0644 ) ) == -1 ) open_err( in_file->filename );
@@ -1802,9 +1847,11 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode ) {
 		else ftp_open = true;
 	} else err = 1;
 	
-	if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
+		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 
 	if ( ! err ) {
+			if ( in_file->file_size == 0 )
+				exiso_log( "%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", path, in_file->filename, in_mode == k_extract || in_mode == k_upload ? " " : "" );
 		if ( in_mode == k_extract ) {
 			for ( i = 0, size = min( in_file->file_size, READWRITE_BUFFER_SIZE );
 				  i < in_file->file_size && read( in_xiso, s_copy_buffer, size ) == (int) size;
@@ -1814,6 +1861,9 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode ) {
 					write_err();
 					break;
 				}
+					totalsize += size;
+					totalpercent = ( totalsize * 100.0 ) / in_file->file_size;
+					exiso_log( "%s%s%s (%lu bytes) [%lu%%]%s\r", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", path, in_file->filename, in_file->file_size , totalpercent, in_mode == k_extract || in_mode == k_upload ? " " : "" );
 			}
 			
 			close( out );
@@ -1826,11 +1876,17 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode ) {
 					rwrite_err();
 					break;
 				}
+					totalsize += size;
+					totalpercent = ( totalsize * 100.0 ) / in_file->file_size;
+					exiso_log( "%s%s%s (%lu bytes) [%lu%%]%s\r", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", path, in_file->filename, in_file->file_size , totalpercent, in_mode == k_extract || in_mode == k_upload ? " " : "" );
 			}
 		}
 	}
 
 	if ( ftp_open ) FtpClose( s_ftp );
+	}
+
+	if ( ! err ) exiso_log( "\n" );
 
 	return err;
 }
@@ -1929,7 +1985,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		}
 
 		if ( ! err ) {
-			exiso_log( "adding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
+			exiso_log( "adding %s%s (%lu bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
 
 			if ( s_media_enable && ( i = (int) strlen( in_avl->filename ) ) >= 4 && in_avl->filename[ i - 4 ] == '.' && ( in_avl->filename[ i - 3 ] | 0x20 ) == 'x' && ( in_avl->filename[ i - 2 ] | 0x20 ) == 'b' && ( in_avl->filename[ i - 1 ] | 0x20 ) == 'e' ) {
 				for ( bytes = in_avl->file_size, i = 0; ! err && bytes; ) {

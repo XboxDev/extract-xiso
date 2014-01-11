@@ -79,7 +79,7 @@ FtpHash(FTP *ftp, unsigned long chars)
   
   if (chars==0) return ftp->counter=0;
   ftp->counter+=chars;
-  fprintf(stderr,"%10u bytes transfered\r",ftp->counter);
+  fprintf(stderr,"%10lu bytes transfered\r",ftp->counter);
   fflush(stderr);
   return ftp->counter;
 }
