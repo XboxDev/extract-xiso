@@ -348,8 +348,6 @@
 	#define S_ISDIR( x )				( ( x ) & _S_IFDIR )
 	#define S_ISREG( x )				( ( x ) & _S_IFREG )
 
-	#define ULONG_MAX					0xfffffffful
-
 	#include "win32/getopt.c"
 	#include "win32/asprintf.c"
 	
@@ -366,8 +364,7 @@
 #define swap16( n )						( ( n ) = ( n ) << 8 | ( n ) >> 8 )
 #define swap32( n )						( ( n ) = ( n ) << 24 | ( n ) << 8 & 0xff0000 | ( n ) >> 8 & 0xff00 | ( n ) >> 24 )
 
-
-#if BYTE_ORDER == BIG_ENDIAN
+#ifdef USE_BIG_ENDIAN
 	#define big16( n )
 	#define big32( n )
 	#define little16( n )				swap16( n )
@@ -378,7 +375,6 @@
 	#define	little16( n )
 	#define little32( n )
 #endif
-
 
 #if BURN_ENABLED
 	#define BURN_OPTION_CHAR			"b"
