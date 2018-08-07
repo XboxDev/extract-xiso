@@ -1,0 +1,115 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Source Files">
+      <UniqueIdentifier>{c6832686-85fd-44eb-894c-c576097f909f}</UniqueIdentifier>
+      <Extensions>cpp;c;cxx;def;odl;idl;hpj;bat;asm</Extensions>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpAbort.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpArchie.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpBye.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpChmod.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpClose.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpCommand.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpConnect.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpCopy.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpData.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpDebug.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpFilenameChecker.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpFull.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpGetHost.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpGood.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpHTTP.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpIO.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpInit.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpLogin.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpMessage.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpMove.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpOpenDir.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpPasv.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpPort.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpPwd.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpRetr.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpSize.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpStat.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpStor.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpSyst.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpType.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\Ftp_etclib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\libftp-5.0.1.modified.by.in\Ftpfopen.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\extract-xiso.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\libftp-5.0.1.modified.by.in\FtpLibrary.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+  </ItemGroup>
+</Project>

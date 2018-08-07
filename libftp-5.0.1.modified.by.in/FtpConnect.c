@@ -77,22 +77,6 @@ STATUS FtpConnect(FTP **con,char * hostname)
 
 #if defined( _WIN32 )
 FILE *winsock_fdopen( int in_fd, char *in_mode ) {
-	enum { k_socket_buffer_size = 256 };
-
-	FILE		   *fp;
-	char			buf[ k_socket_buffer_size ];
-	int				len = k_socket_buffer_size, r;
-
-	r = getsockopt( (SOCKET) in_fd, SOL_SOCKET, SO_TYPE, buf, &len );
-	if ( r == SOCKET_ERROR && WSAGetLastError() == WSAENOTSOCK ) return fdopen( in_fd, in_mode );
-
-	if ( ( fp = (FILE *) malloc( sizeof(FILE) ) ) != NULL ) {
-		memset( fp, 0, sizeof(FILE) );
-
-		fp->_file = in_fd;
-		fp->_flag = ( *in_mode == 'r' ? _IOREAD : _IOWRT );
-	} else errno = ENOMEM;
-
-	return fp;
+	return NULL;
 }
 #endif

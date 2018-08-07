@@ -98,22 +98,26 @@ STATUS FtpSendMessage( FTP *ftp, char *inMessage ) {
 
 char *FtpMessage(int number)
 {
-#if ! defined( __DARWIN__ ) && ! defined( __LINUX__ ) && ! defined( __FREEBSD__ )
-  extern int sys_nerr,errno;
-  extern char *sys_errlist[];
-#endif
-  
+#ifdef WIN32
+  return "";
+#else 
+  #if ! defined( __DARWIN__ ) && ! defined( __LINUX__ ) && ! defined( __FREEBSD__ )
+    extern int sys_nerr,errno;
+    extern char *sys_errlist[];
+  #endif
+
   FtpInitMessageList();
 
   if ( number == 0 )
-#if ! defined( __DARWIN__ ) && ! defined( __LINUX__ ) && ! defined( __FREEBSD__ )
-    return sys_errlist[errno];
-#else
-	return (char *) strerror( errno );
-#endif
+    #if ! defined( __DARWIN__ ) && ! defined( __LINUX__ ) && ! defined( __FREEBSD__ )
+      return sys_errlist[errno];
+    #else
+      return (char *) strerror( errno );
+    #endif
 
-  return (FtpMessageList[abs(number)]==NULL)?
-    "":FtpMessageList[abs(number)];
+    return (FtpMessageList[abs(number)]==NULL)?
+      "":FtpMessageList[abs(number)];
+#endif
 }
 
 
