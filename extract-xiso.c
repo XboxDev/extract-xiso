@@ -254,30 +254,6 @@
 	#include <machine/limits.h>
 #endif
 
-
-#if ! defined( NO_FTP )
-	#define libftp_client
-	#include "libftp-5.0.1.modified.by.in/FtpLibrary.h"
-#else
-	typedef 							struct FTP_STAT { char type; unsigned long size; char *name; void *next; } FTP_STAT;
-
-	#define FTP							void
-	#define STATUS						int
-	
-	#define FtpBye( a )					do { } while ( 0 )
-	#define FtpClose( a )				do { } while ( 0 )
-	#define FtpBinary( a )				do { } while ( 0 )
-	#define FtpChdir( a, b )			do { } while ( 0 )
-	#define FtpMkdir( a, b )			do { } while ( 0 )
-	#define FtpStatFree( a )			do { } while ( 0 )
-	#define FtpStat( a, b, c )			do { } while ( 0 )
-	#define FtpOpenRead( a, b )			do { } while ( 0 )
-	#define FtpOpenWrite( a, b )		do { } while ( 0 )
-	#define FtpReadBlock( a, b, c )		do { } while ( 0 )
-	#define FtpWriteBlock( a, b, c )	do { } while ( 0 )
-	#define FtpLogin( a, b, c, d, e )	do { } while ( 0 )
-#endif
-
 #if defined( _WIN32 )
 	#include <direct.h>
 	#include "win32/dirent.c"
@@ -413,52 +389,6 @@
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
 
-#if ! defined( NO_FTP )
-#define usage() 						fprintf( stderr, \
-"%s\n\
-  Usage:\n\
-\n\
-    %s [options] [-[" BURN_OPTION_CHAR "lrx]] <file1.xiso> [file2.xiso] ...\n\
-    %s [options] -c <dir> [name] [-c <dir> [name]] ...\n\
-\n\
-  Mutually exclusive modes:\n\
-\n\
-"	BURN_OPTION_TEXT	"\
-    -c <dir> [name]     Create xiso from file(s) starting in (local or remote)\n\
-                          <dir>.  If the [name] parameter is specified, the\n\
-                          xiso will be created with the (path and) name given,\n\
-                          otherwise the xiso will be created in the current\n\
-                          directory with the name <dir>.iso.  The -c option\n\
-                          may be specified multiple times to create multiple\n\
-                          xiso images.\n\
-    -l                  List files in xiso(s).\n\
-    -r                  Rewrite xiso(s) as optimized xiso(s).\n\
-    -x                  Extract xiso(s) (the default mode if none is given).\n\
-                          If no directory is specified with -d, a directory\n\
-                          with the name of the xiso (minus the .iso portion)\n\
-                          will be created in the current directory and the\n\
-                          xiso will be expanded there.\n\
-\n\
-  Options:\n\
-\n\
-    -d <directory>      In extract mode, expand xiso in <directory>.\n\
-                        In rewrite mode, rewrite xiso in <directory>.\n\
-                        This option is required when extracting to an ftp\n\
-                          server.\n\
-    -D                  In rewrite mode, delete old xiso after processing.\n\
-    -h                  Print this help text and exit.\n\
-    -f <ftp_server>     In create or extract mode, use <ftp_server> instead of\n\
-                          the local filesystem.\n\
-    -m                  In create or rewrite mode, disable automatic .xbe\n\
-                          media enable patching (not recommended).\n\
-    -p <password>       Ftp password (defaults to \"xbox\")\n\
-    -q                  Run quiet (suppress all non-error output).\n\
-    -Q                  Run silent (suppress all output).\n\
-    -s                  Skip $SystemUpdate folder.\n\
-    -u <user name>      Ftp user name (defaults to \"xbox\")\n\
-    -v                  Print version information and exit.\n\
-", banner, argv[ 0 ], argv[ 0 ] );
-#else
 #define usage() 						fprintf( stderr, \
 "%s\n\
   Usage:\n\
@@ -496,7 +426,6 @@
     -s                  Skip $SystemUpdate folder.\n\
     -v                  Print version information and exit.\n\
 ", banner, argv[ 0 ], argv[ 0 ] );
-#endif
 
 #define exiso_log						if ( ! s_quiet ) printf
 #define flush()							if ( ! s_quiet ) fflush( stdout )
@@ -576,15 +505,9 @@
 
 #define READWRITE_BUFFER_SIZE			0x00200000
 
-#define FTP_DEFAULT_USERPASS			"xbox"
-
 #define DEBUG_DUMP_DIRECTORY			"/Volumes/c/xbox/iso/exiso"
 
-#if ! defined( NO_FTP )
-#define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Df:hlmp:qQrsu:vx"
-#else
 #define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Dhlmp:qQrsvx"
-#endif
 
 
 typedef enum avl_skew { k_no_skew , k_left_skew , k_right_skew } avl_skew;
@@ -593,7 +516,7 @@ typedef enum avl_traversal_method { k_prefix, k_infix, k_postfix } avl_traversal
 
 typedef enum bm_constants { k_default_alphabet_size = 256 } bm_constants;
 
-typedef enum modes { k_generate_avl, k_extract, k_upload, k_list, k_rewrite, k_burn } modes;
+typedef enum modes { k_generate_avl, k_extract, k_list, k_rewrite, k_burn } modes;
 typedef enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 } errors;
 
 typedef void (*progress_callback)( xoff_t in_current_value, xoff_t in_final_value );
@@ -675,7 +598,6 @@ int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size )
 
 int free_dir_node_avl( void *in_dir_node_avl, void *, long );
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
-int open_ftp_connection( char *in_host, char *in_user, char *in_password, FTP **out_ftp );
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path, bool in_ll_compat );
 int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name );
 int traverse_xiso( int in_xiso, dir_node *in_dir_node, xoff_t in_dir_start, char *in_path, modes in_mode, dir_node_avl **in_root, bool in_ll_compat );
@@ -700,7 +622,6 @@ void write_sector( int in_xiso, xoff_t in_start, char *in_name, char *in_extensi
 
 
 static long								s_pat_len;
-static FTP							   *s_ftp = nil;
 static bool								s_quiet = false;
 static char							   *s_pattern = nil;
 static long							   *s_gs_table = nil;
@@ -736,11 +657,9 @@ int main( int argc, char **argv ) {
 	create_list	   *create = nil, *p, *q, **r;
 	int				i, fd, opt_char, err = 0, isos = 0;
 	bool			burn = false, extract = true, rewrite = false, free_user = false, free_pass = false, x_seen = false, delete = false, optimized;
-	char		   *cwd = nil, *server = nil, *pass, *path = nil, *user, *buf = nil, *new_iso_path = nil, tag[ XISO_OPTIMIZED_TAG_LENGTH * sizeof(long) ];
+	char		   *cwd = nil, *path = nil, *buf = nil, *new_iso_path = nil, tag[ XISO_OPTIMIZED_TAG_LENGTH * sizeof(long) ];
 
 	if ( argc < 2 ) { usage(); exit( 1 ); }
-	
-	user = pass = FTP_DEFAULT_USERPASS;
 	
 	while ( ! err && ( opt_char = getopt( argc, argv, GETOPT_STRING ) ) != -1 ) {
 		switch ( opt_char ) {
@@ -779,11 +698,6 @@ int main( int argc, char **argv ) {
 				delete = true;
 			} break;
 
-			case 'f': {
-				if ( server ) free( server );
-				if ( ( server = strdup( optarg ) ) == nil ) mem_err();
-			} break;
-
 			case 'h': {
 				usage();
 				exit( 0 );
@@ -805,12 +719,6 @@ int main( int argc, char **argv ) {
 				s_media_enable = false;
 			} break;
 			
-			case 'p': {
-				if ( pass && free_pass ) free( pass );
-				if ( ( pass = strdup( optarg ) ) == nil ) mem_err();
-				free_pass = true;
-			} break;
-			
 			case 'q': {
 				s_quiet = true;
 			} break;
@@ -829,12 +737,6 @@ int main( int argc, char **argv ) {
 
 			case 's': {
 				s_remove_systemupdate = true;
-			} break;
-
-			case 'u': {
-				if ( user && free_user ) free( user );
-				if ( ( user = strdup( optarg ) ) == nil ) mem_err();
-				free_user = true;
 			} break;
 
 			case 'v': {
@@ -858,27 +760,15 @@ int main( int argc, char **argv ) {
 	}
 	
 	if ( ! err ) {
-		if ( ( ! extract || rewrite ) && server ) { free( server ); server = nil; }
 
 		if ( create ) { if ( optind < argc ) { usage(); exit( 1 ); } }
-		else if ( optind >= argc || server && ! path ) { usage(); exit( 1 ); }
+		else if ( optind >= argc ) { usage(); exit( 1 ); }
 	
 		exiso_log( "%s", banner );
 	
-		if ( ( server || extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nil ) mem_err();
+		if ( ( extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nil ) mem_err();
 	}
 	
-	if ( ! err && server ) {
-	#if defined( _WIN32 )
-		WSADATA		ws_data;
-		WORD		ws_version_requested = MAKEWORD( 2, 0 );
-
-		if ( ( err = WSAStartup( ws_version_requested, &ws_data ) ) || LOBYTE( ws_data.wVersion ) != 2 || HIBYTE( ws_data.wVersion ) != 0 ) misc_err( "unable to initialize winsock v2 dll, aborting ftp operation\n", 0, 0, 0 );
-	#endif
-
-		if ( ! err ) err = open_ftp_connection( server, user, pass, &s_ftp );
-	}
-
 	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
 
 	if ( ! err && create ) {
@@ -914,21 +804,6 @@ int main( int argc, char **argv ) {
 		exiso_log( "\n" );
 		s_total_bytes = s_total_files = 0;
 		
-		if ( server && path ) {
-			char				*tmp;
-			
-			if ( ( tmp = strdup( path ) ) == NULL ) { mem_err(); }
-			else if ( tmp[ 1 ] == ':' ) {
-				int				i, n;
-
-				tmp[ 1 ] = tmp[ 0 ];
-				tmp[ 0 ] = '/';
-
-				for ( i = 2, n = (int) strlen( tmp ); i < n; ++i ) if ( tmp[ i ] == '\\' ) tmp[ i ] = '/';
-			}
-			if ( ! err && FtpChdir( s_ftp, tmp ) < 0 ) rchdir_err( tmp );
-			if ( tmp ) free( tmp );
-		}
 		
 		if ( ! err ) {
 			optimized = false;
@@ -976,7 +851,7 @@ int main( int argc, char **argv ) {
 					}
 				
 					// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
-					if ( ! err ) err = decode_xiso( argv[ i ], path, server ? k_upload : burn ? k_burn : extract ? k_extract : k_list, nil, ! optimized );
+					if ( ! err ) err = decode_xiso( argv[ i ], path, burn ? k_burn : extract ? k_extract : k_list, nil, ! optimized );
 
 					if ( burn && err == err_burn_aborted ) exiso_log( "burn aborted.\n" );
 				}
@@ -998,19 +873,9 @@ int main( int argc, char **argv ) {
 	if ( ! err && isos > 1  && ! burn ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
 	if ( s_warned ) exiso_log( "\nWARNING:  Warning(s) were issued during execution--review stderr!\n" );
 	
-	if ( s_ftp ) FtpBye( s_ftp );
-	
 	boyer_moore_done();
 	
 	if ( s_copy_buffer ) free( s_copy_buffer );
-	if ( user && free_user ) free( user );
-	if ( pass && free_pass ) free( pass );
-	if ( server ) {
-	#if defined( _WIN32 )
-		WSACleanup();
-	#endif
-		free( server );
-	}
 	if ( path ) free( path );
 		
 	return err;
@@ -1113,16 +978,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
 	if ( ! err ) {
 		if ( ! in_root ) {
-			if ( ! s_ftp ) { if ( chdir( in_root_directory ) == -1 ) chdir_err( in_root_directory ); }
-			else {
-				if ( in_root_directory[ 1 ] == ':' ) {
-					in_root_directory[ 1 ] = in_root_directory[ 0 ];
-					in_root_directory[ 0 ] = '/';
-
-					for ( i = 2, n = (int) strlen( in_root_directory ); i < n; ++i ) if ( in_root_directory[ i ] == '\\' ) in_root_directory[ i ] = '/';
-				}
-				if ( FtpChdir( s_ftp, in_root_directory ) < 0 ) rchdir_err( in_root_directory );
-			}
+			if ( chdir( in_root_directory ) == -1 ) chdir_err( in_root_directory );
 			if ( ! err ) {
 				if ( in_root_directory[ i = (int) strlen( in_root_directory ) - 1 ] == '/' || in_root_directory[ i ] == '\\' ) in_root_directory[ i-- ] = 0;
 				for ( iso_dir = &in_root_directory[ i ]; iso_dir >= in_root_directory && *iso_dir != PATH_CHAR; --iso_dir ) ; ++iso_dir;
@@ -1158,9 +1014,9 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 		} else {
 			int		i, n = 0;
 
-			exiso_log( "generating avl tree from %sfilesystem: ", s_ftp ? "remote " : "" ); flush();
+			exiso_log( "generating avl tree from %sfilesystem: ", "" ); flush();
 			
-			err = s_ftp ? generate_avl_tree_remote( &root.subdirectory, &n ) : generate_avl_tree_local( &root.subdirectory, &n );
+			err = generate_avl_tree_local( &root.subdirectory, &n );
 
 			for ( i = 0; i < n; ++i ) exiso_log( "\b" );
 			for ( i = 0; i < n; ++i ) exiso_log( " " );
@@ -1219,8 +1075,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ! err && write( xiso, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) write_err();
 	
 	if ( ! err && ! in_root ) {
-		if ( s_ftp ) { if ( FtpChdir( s_ftp, ".." ) < 0 ) rchdir_err( ".." ); }
-		else { if ( chdir( ".." ) == -1 ) chdir_err( ".." ); }
+		if ( chdir( ".." ) == -1 ) chdir_err( ".." );
 	}
 	if ( ! err && ( root.filename = strdup( iso_dir ) ) == nil ) mem_err();
 
@@ -1309,16 +1164,13 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	iso_name = short_name ? short_name : name;
 
 	if ( ! err && in_mode != k_rewrite ) {
-		exiso_log( "%s %s:\n\n", in_mode == k_extract ? "extracting" : in_mode == k_upload ? "uploading" : in_mode == k_burn ? "burning" : "listing", name );
+		exiso_log( "%s %s:\n\n", in_mode == k_extract ? "extracting" : in_mode == k_burn ? "burning" : "listing", name );
 
 		if ( in_mode == k_extract ) {
 			if ( ! in_path ) {
 				if ( ( err = mkdir( iso_name, 0755 ) ) ) mkdir_err( iso_name );
 				if ( ! err && ( err = chdir( iso_name ) ) ) chdir_err( iso_name );
 			}
-		} else if ( in_mode == k_upload ) {
-			if ( FtpMkdir( s_ftp, iso_name ) < 0 ) rmkdir_err( iso_name );
-			if ( ! err && FtpChdir( s_ftp, iso_name ) < 0 ) rchdir_err( iso_name );
 		}
 	}
 	
@@ -1331,7 +1183,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		if ( ( buf = (char *) malloc( path_len + add_slash + strlen( iso_name ) + 2 ) ) == nil ) mem_err();
 		
 		if ( ! err ) {
-			sprintf( buf, "%s%s%s%c", in_path ? in_path : "", add_slash && ( ! in_path || in_mode == k_upload ) ? PATH_CHAR_STR : "", in_mode != k_list && ( ! in_path || in_mode == k_upload ) ? iso_name : "", PATH_CHAR );
+			sprintf( buf, "%s%s%s%c", in_path ? in_path : "", add_slash && ( ! in_path ) ? PATH_CHAR_STR : "", in_mode != k_list && ( ! in_path ) ? iso_name : "", PATH_CHAR );
 
 			if ( in_mode == k_rewrite ) {
 	
@@ -1369,7 +1221,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	}
 	
 	if ( err == err_iso_rewritten ) err = 0;
-	if ( err && err != err_burn_aborted ) misc_err( "failed to %s xbox iso image %s\n", in_mode == k_rewrite ? "rewrite" : in_mode == k_burn ? "burn" : in_mode == k_extract ? "extract" : in_mode == k_upload ? "upload" : "list", name, 0 );
+	if ( err && err != err_burn_aborted ) misc_err( "failed to %s xbox iso image %s\n", in_mode == k_rewrite ? "rewrite" : in_mode == k_burn ? "burn" : in_mode == k_extract ? "extract" : "list", name, 0 );
 
 	if ( xiso != -1 ) close( xiso );
 		
@@ -1497,9 +1349,6 @@ left_processed:
 				if ( in_mode == k_extract ) {
 					if ( ( err = mkdir( dir->filename, 0755 ) ) ) mkdir_err( dir->filename );
 					if ( ! err && dir->start_sector && ( err = chdir( dir->filename ) ) ) chdir_err( dir->filename );
-				} else if ( in_mode == k_upload ) {
-					if ( FtpMkdir( s_ftp, dir->filename ) < 0 ) rmkdir_err( dir->filename );
-					if ( ! err && dir->start_sector && FtpChdir( s_ftp, dir->filename ) < 0 ) rchdir_err( dir->filename );
 				}
 				if ( ! err && in_mode != k_list && in_mode != k_generate_avl ) exiso_log( "creating %s (0 bytes) [OK]\n", path );
 			}
@@ -1515,7 +1364,6 @@ left_processed:
 				{
 	
 				if ( ! err && in_mode == k_extract && ( err = chdir( ".." ) ) ) chdir_err( ".." );
-				if ( ! err && in_mode == k_upload && FtpChdir( s_ftp, ".." ) < 0 ) rchdir_err( ".." );
 			}
 			}
 	
@@ -1525,10 +1373,10 @@ left_processed:
 				if ( !s_remove_systemupdate || !strstr( in_path, s_systemupdate ) )
 				{
 
-				if ( in_mode == k_extract || in_mode == k_upload ) {
+				if ( in_mode == k_extract ) {
 						err = extract_file( in_xiso, dir, in_mode, in_path );
 				} else {
-					exiso_log( "%s%s%s (%lu bytes)%s", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", in_path, dir->filename, dir->file_size , in_mode == k_extract || in_mode == k_upload ? " " : "" ); flush();
+					exiso_log( "%s%s%s (%lu bytes)%s", in_mode == k_extract ? "extracting " : "", in_path, dir->filename, dir->file_size , "" ); flush();
 					exiso_log( "\n" );
 				}
 
@@ -1825,7 +1673,7 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 	char					c;
 	int						err = 0;
-	bool					ftp_open = false, warn = false;
+	bool					warn = false;
 	unsigned long			i, size, totalsize = 0, totalpercent = 0;
 	int						out;
 
@@ -1838,16 +1686,13 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 
 	if ( in_mode == k_extract ) {
 		if ( ( out = open( in_file->filename, WRITEFLAGS, 0644 ) ) == -1 ) open_err( in_file->filename );
-	} else if ( in_mode == k_upload ) {
-		if ( FtpOpenWrite( s_ftp, in_file->filename ) < 0 ) { ropen_err( in_file->filename ); }
-		else ftp_open = true;
-	} else err = 1;
+	}  else err = 1;
 	
 		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 
 	if ( ! err ) {
 			if ( in_file->file_size == 0 )
-				exiso_log( "%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", path, in_file->filename, in_mode == k_extract || in_mode == k_upload ? " " : "" );
+				exiso_log( "%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, "" );
 		if ( in_mode == k_extract ) {
 			for ( i = 0, size = min( in_file->file_size, READWRITE_BUFFER_SIZE );
 				  i < in_file->file_size && read( in_xiso, s_copy_buffer, size ) == (int) size;
@@ -1859,7 +1704,7 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 				}
 					totalsize += size;
 					totalpercent = ( totalsize * 100.0 ) / in_file->file_size;
-					exiso_log( "%s%s%s (%lu bytes) [%lu%%]%s\r", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", path, in_file->filename, in_file->file_size , totalpercent, in_mode == k_extract || in_mode == k_upload ? " " : "" );
+					exiso_log( "%s%s%s (%lu bytes) [%lu%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size , totalpercent, "" );
 			}
 			
 			close( out );
@@ -1868,37 +1713,16 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 				  i < in_file->file_size && read( in_xiso, s_copy_buffer, size ) == (int) size;
 				  i += size, size = min( in_file->file_size - i, READWRITE_BUFFER_SIZE ) )
 			{
-				if ( FtpWriteBlock( s_ftp, s_copy_buffer, size ) != (int) size ) {
-					rwrite_err();
-					break;
-				}
 					totalsize += size;
 					totalpercent = ( totalsize * 100.0 ) / in_file->file_size;
-					exiso_log( "%s%s%s (%lu bytes) [%lu%%]%s\r", in_mode == k_extract ? "extracting " : in_mode == k_upload ? "uploading " : "", path, in_file->filename, in_file->file_size , totalpercent, in_mode == k_extract || in_mode == k_upload ? " " : "" );
+					exiso_log( "%s%s%s (%lu bytes) [%lu%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size , totalpercent, "" );
 			}
 		}
 	}
 
-	if ( ftp_open ) FtpClose( s_ftp );
 	}
 
 	if ( ! err ) exiso_log( "\n" );
-
-	return err;
-}
-
-
-int open_ftp_connection( char *in_host, char *in_user, char *in_password, FTP **out_ftp ) {
-	STATUS			err = 0;
-	
-	exiso_log( "\nlogging in to ftp server %s... ", in_host ); flush();
-
-	if ( FtpLogin( out_ftp, in_host, in_user, in_password, nil ) < 0 ) err = 1;
-	if ( ! err && FtpBinary( *out_ftp ) < 0 ) err = 1;
-	
-	exiso_log( "%s\n", err ? "failed!" : "[OK]" );
-
-	if ( err && s_quiet ) misc_err( "unable to exiso_log in to ftp server %s\n", in_host, 0, 0 );
 
 	return err;
 }
@@ -1936,8 +1760,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				context.final_bytes = in_context->final_bytes;
 		
 				if ( in_context->from == -1 ) {
-					if ( s_ftp ) { if ( FtpChdir( s_ftp, in_avl->filename ) < 0 ) rchdir_err( in_avl->filename ); }
-					else { if ( chdir( in_avl->filename ) == -1 ) chdir_err( in_avl->filename ); }
+					if ( chdir( in_avl->filename ) == -1 ) chdir_err( in_avl->filename );
 				}
 				if ( ! err && lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_directory, (void *) in_context->xiso, k_prefix, 0 );
@@ -1949,8 +1772,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_file, &context, k_prefix, 0 );
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_tree, &context, k_prefix, 0 );
 				if ( ! err && in_context->from == -1 ) {
-					if ( s_ftp ) { if ( FtpChdir( s_ftp, ".." ) < 0 ) rchdir_err( ".." ); }
-					else { if ( chdir( ".." ) == -1 ) chdir_err( ".." ); }
+					if ( chdir( ".." ) == -1 ) chdir_err( ".." );
 				}
 				
 				if ( context.path ) free( context.path );
@@ -1973,8 +1795,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		if ( ! err && ( buf = (char *) malloc( ( size = max( XISO_SECTOR_SIZE, READWRITE_BUFFER_SIZE ) ) + 1 ) ) == nil ) mem_err();
 		if ( ! err ) {
 			if ( in_context->from == -1 ) {
-				if ( s_ftp ) { if ( FtpOpenRead( s_ftp, in_avl->filename ) < 0 ) ropen_err( in_avl->filename ); }
-				else { if ( ( fd = open( in_avl->filename, READFLAGS, 0 ) ) == -1 ) open_err( in_avl->filename ); }
+				if ( ( fd = open( in_avl->filename, READFLAGS, 0 ) ) == -1 ) open_err( in_avl->filename );
 			} else {
 				if ( lseek( fd = in_context->from, (xoff_t) in_avl->old_start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 			}
@@ -1985,8 +1806,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 
 			if ( s_media_enable && ( i = (int) strlen( in_avl->filename ) ) >= 4 && in_avl->filename[ i - 4 ] == '.' && ( in_avl->filename[ i - 3 ] | 0x20 ) == 'x' && ( in_avl->filename[ i - 2 ] | 0x20 ) == 'b' && ( in_avl->filename[ i - 1 ] | 0x20 ) == 'e' ) {
 				for ( bytes = in_avl->file_size, i = 0; ! err && bytes; ) {
-					if ( s_ftp ) { if ( ( n = FtpReadBlock( s_ftp, buf + i, min( bytes, size - i ) ) ) < 0 ) rread_err(); }
-					else { if ( ( n = read( fd, buf + i, min( bytes, size - i ) ) ) == -1 ) read_err(); }
+					if ( ( n = read( fd, buf + i, min( bytes, size - i ) ) ) == -1 ) read_err();
 					
 					bytes -= n;
 										
@@ -2004,8 +1824,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				}
 			} else {
 				for ( bytes = in_avl->file_size; ! err && bytes; bytes -= n ) {
-					if ( s_ftp ) { if ( ( n = FtpReadBlock( s_ftp, buf, min( bytes, size ) ) ) < 0 ) rread_err(); }
-					else { if ( ( n = read( fd, buf, min( bytes, size ) ) ) == -1 ) read_err(); }
+					if ( ( n = read( fd, buf, min( bytes, size ) ) ) == -1 ) read_err();
 	
 					if ( ! err && write( in_context->xiso, buf, n ) != (int) n ) write_err();
 				}
@@ -2028,7 +1847,6 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		}
 				
 		if ( in_context->from == -1 && fd != -1 ) close( fd );
-		if ( s_ftp ) FtpClose( s_ftp );
 		if ( buf ) free( buf );
 	}
 	
@@ -2209,66 +2027,6 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 	if ( empty_dir ) *out_root = EMPTY_SUBDIRECTORY;
 	
 	if ( dir ) closedir( dir );
-	
-	return err;
-}
-
-
-int generate_avl_tree_remote( dir_node_avl **out_root, int *io_n ) {
-	dir_node_avl	   *avl;
-	int					err = 0, i, j;
-	FTP_STAT		   *ftp_stat = nil, *p;
-	bool				empty_dir = true;
-
-	if ( FtpStat( s_ftp, "", &ftp_stat ) < 0 ) misc_err( "unable to stat remote directory", 0, 0, 0 );
-
-	for ( p = ftp_stat; ! err && p != nil; p = p->next ) {
-		if ( ! strcmp( p->name, "." ) || ! strcmp( p->name, ".." ) ) continue;
-
-		for ( i = *io_n; i; --i ) exiso_log( "\b" );
-		exiso_log( "%s", p->name );
-		for ( j = i = (int) strlen( p->name ); j < *io_n; ++j ) exiso_log( " " );
-		for ( j = i; j < *io_n; ++j ) exiso_log( "\b" );
-		*io_n = i;
-		flush();
-
-		if ( ( avl = (dir_node_avl *) malloc( sizeof(dir_node_avl) ) ) == nil ) mem_err();
-		if ( ! err ) {
-			memset( avl, 0, sizeof(dir_node_avl) );
-			if ( ( avl->filename = strdup( p->name ) ) == nil ) mem_err();
-
-			if ( ! err ) {
-				if ( p->type == 'd' ) {
-					empty_dir = false;
-	
-					if ( FtpChdir( s_ftp, avl->filename ) < 0 ) rchdir_err( avl->filename );
-	
-					if ( ! err ) err = generate_avl_tree_remote( &avl->subdirectory, io_n );
-					if ( ! err && FtpChdir( s_ftp, ".." ) <= 0 ) rchdir_err( ".." );
-				} else if ( p->type == '-' ) {
-					empty_dir = false;
-					s_total_bytes += avl->file_size = (unsigned long) p->size;
-					++s_total_files;
-				} else {
-					free( avl->filename );
-					free( avl );
-					continue;
-				}
-			}
-		}
-		if ( ! err ) {
-			if ( avl_insert( out_root, avl ) == k_avl_error ) misc_err( "error inserting file %s into tree (duplicate filename?)\n", avl->filename, 0, 0 );
-		} else {
-			if ( avl ) {
-				if ( avl->filename ) free( avl->filename );
-				free( avl );
-			}
-		}
-	}
-	
-	if ( empty_dir ) *out_root = EMPTY_SUBDIRECTORY;
-	
-	if ( ftp_stat ) FtpStatFree( ftp_stat );
 	
 	return err;
 }

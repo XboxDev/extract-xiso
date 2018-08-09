@@ -67,7 +67,7 @@
       <ProgramDatabaseFile>$(OutDir)visual_c++_project.pdb</ProgramDatabaseFile>
       <SubSystem>Console</SubSystem>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>WS2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -92,46 +92,11 @@
       <OptimizeReferences>true</OptimizeReferences>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <TargetMachine>MachineX86</TargetMachine>
-      <AdditionalDependencies>WS2_32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="..\extract-xiso.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpAbort.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpArchie.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpBye.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpChmod.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpClose.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpCommand.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpConnect.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpCopy.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpData.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpDebug.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpFilenameChecker.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\Ftpfopen.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpFull.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpGetHost.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpGood.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpHTTP.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpInit.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpIO.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpLogin.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpMessage.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpMove.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpOpenDir.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpPasv.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpPort.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpPwd.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpRetr.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpSize.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpStat.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpStor.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpSyst.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\FtpType.c" />
-    <ClCompile Include="..\libftp-5.0.1.modified.by.in\Ftp_etclib.c" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\libftp-5.0.1.modified.by.in\FtpLibrary.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
