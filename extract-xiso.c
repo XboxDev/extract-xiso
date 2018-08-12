@@ -270,8 +270,6 @@
 	#define PATH_CHAR					'/'
 	#define PATH_CHAR_STR				"/"
 
-	// I'm not planning on distributing the cd-burning code on darwin, so BURN_ENABLED is 0
-	#define BURN_ENABLED				0
 	#define FORCE_ASCII					1
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
@@ -283,8 +281,7 @@
 
 	#define PATH_CHAR					'/'
 	#define PATH_CHAR_STR				"/"
-	
-	#define BURN_ENABLED				0
+
 	#define FORCE_ASCII					1
 	#define READFLAGS					O_RDONLY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
@@ -296,8 +293,7 @@
 
 	#define PATH_CHAR					'/'
 	#define PATH_CHAR_STR				"/"
-	
-	#define BURN_ENABLED				0
+
 	#define FORCE_ASCII					0
 	#define READFLAGS					O_RDONLY | O_LARGEFILE
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE
@@ -314,8 +310,7 @@
 
 	#define PATH_CHAR					'\\'
 	#define PATH_CHAR_STR				"\\"
-	
-	#define BURN_ENABLED				0
+
 	#define FORCE_ASCII					0
 	#define READFLAGS					O_RDONLY | O_BINARY
 	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_BINARY
@@ -350,16 +345,6 @@
 	#define big32( n )					swap32( n )
 	#define	little16( n )
 	#define little32( n )
-#endif
-
-#if BURN_ENABLED
-	#define BURN_OPTION_CHAR			"b"
-	#define BURN_OPTION_TEXT			"    -b                  Burn xiso image to disc.\n"
-#else
-	#define BURN_OPTION_CHAR			""
-	#define BURN_OPTION_TEXT			""
-	
-	enum { err_burn_aborted = -5004 };
 #endif
 
 
@@ -507,7 +492,7 @@
 
 #define DEBUG_DUMP_DIRECTORY			"/Volumes/c/xbox/iso/exiso"
 
-#define GETOPT_STRING					BURN_OPTION_CHAR "c:d:Dhlmp:qQrsvx"
+#define GETOPT_STRING					"c:d:Dhlmp:qQrsvx"
 
 
 typedef enum avl_skew { k_no_skew , k_left_skew , k_right_skew } avl_skew;
@@ -516,7 +501,7 @@ typedef enum avl_traversal_method { k_prefix, k_infix, k_postfix } avl_traversal
 
 typedef enum bm_constants { k_default_alphabet_size = 256 } bm_constants;
 
-typedef enum modes { k_generate_avl, k_extract, k_list, k_rewrite, k_burn } modes;
+typedef enum modes { k_generate_avl, k_extract, k_list, k_rewrite } modes;
 typedef enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 } errors;
 
 typedef void (*progress_callback)( xoff_t in_current_value, xoff_t in_final_value );
@@ -640,12 +625,6 @@ static char				               *s_systemupdate = "$SystemUpdate";
 
 static xoff_t							s_xbox_disc_lseek = 0;
 
-#if BURN_ENABLED
-	#if defined( __DARWIN__ )
-		#include "darwin/burn.c"
-	#endif
-#endif
-
 
 #if 0		// #pragma mark - inserts a spacer in the function popup of certain text editors (i.e. mine ;-)
 #pragma mark -
@@ -656,23 +635,15 @@ int main( int argc, char **argv ) {
 	struct stat		sb;
 	create_list	   *create = nil, *p, *q, **r;
 	int				i, fd, opt_char, err = 0, isos = 0;
-	bool			burn = false, extract = true, rewrite = false, free_user = false, free_pass = false, x_seen = false, delete = false, optimized;
+	bool			extract = true, rewrite = false, free_user = false, free_pass = false, x_seen = false, delete = false, optimized;
 	char		   *cwd = nil, *path = nil, *buf = nil, *new_iso_path = nil, tag[ XISO_OPTIMIZED_TAG_LENGTH * sizeof(long) ];
 
 	if ( argc < 2 ) { usage(); exit( 1 ); }
 	
 	while ( ! err && ( opt_char = getopt( argc, argv, GETOPT_STRING ) ) != -1 ) {
 		switch ( opt_char ) {
-			case 'b': {
-				if ( x_seen || rewrite || ! extract || create ) {
-					usage();
-					exit( 1 );
-				}
-				burn = true;
-			} break;
-		
 			case 'c': {
-				if ( burn || x_seen || rewrite || ! extract ) {
+				if ( x_seen || rewrite || ! extract ) {
 					usage();
 					exit( 1 );
 				}
@@ -704,7 +675,7 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'l': {
-				if ( burn || x_seen || rewrite || create ) {
+				if ( x_seen || rewrite || create ) {
 					usage();
 					exit( 1 );
 				}
@@ -712,7 +683,7 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'm': {
-				if ( burn || x_seen || ! extract ) {
+				if ( x_seen || ! extract ) {
 					usage();
 					exit( 1 );
 				}
@@ -728,7 +699,7 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'r': {
-				if ( burn || x_seen || ! extract || create ) {
+				if ( x_seen || ! extract || create ) {
 					usage();
 					exit( 1 );
 				}
@@ -745,7 +716,7 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'x': {
-				if ( burn || ! extract || rewrite || create ) {
+				if ( ! extract || rewrite || create ) {
 					usage();
 					exit( 1 );
 				}
@@ -838,27 +809,13 @@ int main( int argc, char **argv ) {
 					
 					if ( buf ) free( buf );
 				} else {
-					if ( burn && ! optimized ) {
-						if ( s_quiet ) misc_err( "refusing to burn a non-optimized xiso in quiet mode\n", 0, 0, 0 );
-						if ( ! err ) {
-							exiso_log( "%s is not optimized!!\n", argv[ i ] );
-							exiso_log( "... you should rewrite it with the -r option before you burn it.\n" );
-							exiso_log( "\ncontinue burn [y/N]? " );
-							
-							*tag = 0;
-							if ( *fgets( tag, sizeof(tag), stdin ) != 'y' && *tag != 'Y' ) err = err_burn_aborted;
-						}
-					}
-				
 					// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
-					if ( ! err ) err = decode_xiso( argv[ i ], path, burn ? k_burn : extract ? k_extract : k_list, nil, ! optimized );
-
-					if ( burn && err == err_burn_aborted ) exiso_log( "burn aborted.\n" );
+					if ( ! err ) err = decode_xiso( argv[ i ], path, extract ? k_extract : k_list, nil, ! optimized );
 				}
 			}
 		}
 		
-		if ( ! err && ! burn ) exiso_log( "\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], (long long int) s_total_bytes );
+		if ( ! err ) exiso_log( "\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], (long long int) s_total_bytes );
 		
 		if ( new_iso_path ) {
 			if ( ! err ) exiso_log( "\n%s successfully rewritten%s%s\n", argv[ i ], path ? " as " : ".", path ? new_iso_path : "" );
@@ -870,7 +827,7 @@ int main( int argc, char **argv ) {
 		if ( err == err_iso_no_files ) err = 0;
 	}
 	
-	if ( ! err && isos > 1  && ! burn ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
+	if ( ! err && isos > 1 ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
 	if ( s_warned ) exiso_log( "\nWARNING:  Warning(s) were issued during execution--review stderr!\n" );
 	
 	boyer_moore_done();
@@ -1164,7 +1121,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	iso_name = short_name ? short_name : name;
 
 	if ( ! err && in_mode != k_rewrite ) {
-		exiso_log( "%s %s:\n\n", in_mode == k_extract ? "extracting" : in_mode == k_burn ? "burning" : "listing", name );
+		exiso_log( "%s %s:\n\n", in_mode == k_extract ? "extracting" : "listing", name );
 
 		if ( in_mode == k_extract ) {
 			if ( ! in_path ) {
@@ -1191,26 +1148,6 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	if ( ! err ) err = traverse_xiso( xiso, nil, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, buf, k_generate_avl, &root, in_ll_compat );
 	if ( ! err ) err = create_xiso( iso_name, in_path, root, xiso, out_iso_path, nil, nil );
 			
-			} else if ( in_mode == k_burn ) {
-			#if BURN_ENABLED
-				#if __DARWIN__
-					static DRDeviceRef			device = nil;
-				#else
-					void					   *device = nil;
-				#endif
-				
-					if ( ! device ) {
-					#if __DARWIN__
-						err = darwin_select_burn_device( &device );
-					#endif
-					}
-					
-					if ( ! err ) {
-					#if __DARWIN__
-						err = darwin_burn_xiso( in_xiso, xiso, device );
-					#endif
-					}
-			#endif
 			} else {
 	      if ( ! err && lseek( xiso, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1) seek_err();
 	      if ( ! err ) err = traverse_xiso( xiso, nil, (xoff_t) root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, buf, in_mode, nil, in_ll_compat );
@@ -1221,7 +1158,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	}
 	
 	if ( err == err_iso_rewritten ) err = 0;
-	if ( err && err != err_burn_aborted ) misc_err( "failed to %s xbox iso image %s\n", in_mode == k_rewrite ? "rewrite" : in_mode == k_burn ? "burn" : in_mode == k_extract ? "extract" : "list", name, 0 );
+	if ( err ) misc_err( "failed to %s xbox iso image %s\n", in_mode == k_rewrite ? "rewrite" : in_mode == k_extract ? "extract" : "list", name, 0 );
 
 	if ( xiso != -1 ) close( xiso );
 		
