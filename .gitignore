@@ -1,3 +1,6 @@
 extract-xiso
 *.o
 *.a
+*.user
+.vs/
+bin/

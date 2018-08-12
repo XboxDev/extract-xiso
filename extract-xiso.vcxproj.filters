@@ -7,7 +7,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\extract-xiso.c">
+    <ClCompile Include="extract-xiso.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
