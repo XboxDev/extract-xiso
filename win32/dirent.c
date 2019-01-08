@@ -71,7 +71,7 @@ extern "C"
 
 struct DIR
 {
-    long                handle; /* -1 for failed rewind */
+    intptr_t            handle; /* -1 for failed rewind */
     struct _finddata_t  info;
     struct dirent       result; /* d_name null iff first time */
     char                *name;  /* null-terminated char string */
@@ -92,7 +92,7 @@ DIR *opendir(const char *name)
         {
             strcat(strcpy(dir->name, name), all);
 
-            if((dir->handle = (long) _findfirst(dir->name, &dir->info)) != -1)
+            if((dir->handle = _findfirst(dir->name, &dir->info)) != -1)
             {
                 dir->result.d_name = 0;
             }
@@ -166,7 +166,7 @@ void rewinddir(DIR *dir)
     if(dir && dir->handle != -1)
     {
         _findclose(dir->handle);
-        dir->handle = (long) _findfirst(dir->name, &dir->info);
+        dir->handle = _findfirst(dir->name, &dir->info);
         dir->result.d_name = 0;
     }
     else
