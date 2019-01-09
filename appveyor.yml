@@ -1,0 +1,17 @@
+image:
+- Visual Studio 2017
+configuration:
+- Release
+before_build:
+- cmd: |-
+    mkdir build
+    cd build
+    cmake .. -G "Visual Studio 15 2017"
+build:
+  project: c:\projects\extract-xiso\build\Project.sln
+after_build:
+- cmd: |-
+    cd %CONFIGURATION%
+    7z u %APPVEYOR_BUILD_FOLDER%\export\%CONFIGURATION%.zip extract-xiso.exe ..\..\LICENSE.TXT
+artifacts:
+- path: export/*.zip
