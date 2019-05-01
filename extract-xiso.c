@@ -302,7 +302,7 @@
 	#define lseek						lseek64
 	#define stat						stat64
 	
-	typedef __off64_t					xoff_t;
+	typedef off64_t 					xoff_t;
 #elif defined( __OPENBSD__ )
 	#define exiso_target				"openbsd"
 #elif defined( _WIN32 )
