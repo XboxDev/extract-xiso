@@ -323,8 +323,9 @@
 	#define S_ISREG( x )				( ( x ) & _S_IFREG )
 
 	#include "win32/getopt.c"
+#ifdef _MSC_VER
 	#include "win32/asprintf.c"
-	
+#endif
 	#define lseek						_lseeki64
 	#define mkdir( a, b )				mkdir( a )
 
