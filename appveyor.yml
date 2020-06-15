@@ -8,7 +8,7 @@ before_build:
     cd build
     cmake .. -G "Visual Studio 15 2017"
 build:
-  project: c:\projects\extract-xiso\build\Project.sln
+  project: c:\projects\extract-xiso\build\extract-xiso.sln
 after_build:
 - cmd: |-
     cd %CONFIGURATION%
