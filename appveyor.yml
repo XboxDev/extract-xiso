@@ -1,17 +1,21 @@
-image:
-- Visual Studio 2017
-configuration:
-- Release
+skip_commits:
+  files:
+    - '*.md'
+    - '.github/**/*'
+image: Visual Studio 2019
+clone_depth: 1
+configuration: Release
 before_build:
-- cmd: |-
+  - |-
     mkdir build
     cd build
-    cmake .. -G "Visual Studio 15 2017"
+    cmake ..
+    cd %APPVEYOR_BUILD_FOLDER%
 build:
-  project: c:\projects\extract-xiso\build\extract-xiso.sln
+  project: build\extract-xiso.sln
+  parallel: true
 after_build:
-- cmd: |-
-    cd %CONFIGURATION%
-    7z u %APPVEYOR_BUILD_FOLDER%\export\%CONFIGURATION%.zip extract-xiso.exe ..\..\LICENSE.TXT
+  - 7z a %CONFIGURATION%.zip build\%CONFIGURATION%\extract-xiso.exe LICENSE.TXT
+test: off
 artifacts:
-- path: export/*.zip
+  - path: $(CONFIGURATION).zip
