@@ -1,0 +1,86 @@
+name: CI
+
+on:
+  push:
+    paths-ignore: 
+      - '*.md'
+      - '*.yml'
+  pull_request:
+    paths-ignore: 
+      - '*.md'
+      - '*.yml'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      POWERSHELL_TELEMETRY_OPTOUT: 1
+    strategy:
+      fail-fast: false
+      matrix:
+        configuration: [Release, Debug]
+        arch: [x86, x64]
+        include:
+          - arch: x86
+            platform: Win32
+            artifact_os: Win32
+          - arch: x64
+            platform: x64
+            artifact_os: Win64
+    steps:
+    - uses: actions/checkout@v2
+    - name: CMake generate
+      run: |
+        mkdir build && cd build
+        cmake .. -A ${{ matrix.platform }}
+    - name: Build
+      working-directory: build
+      run: cmake --build . --config ${{ matrix.configuration }} -j $env:NUMBER_OF_PROCESSORS
+    - name: Prepare artifacts
+      run: |
+        mkdir artifacts
+        mv -vb build\${{ matrix.configuration }}\extract-xiso.exe, LICENSE.TXT artifacts
+    - uses: actions/upload-artifact@v2
+      with:
+        name: extract-xiso_${{ matrix.artifact_os }}_${{ matrix.configuration }}
+        path: artifacts
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: CMake generate
+      run: |
+        mkdir build && cd build
+        cmake ..
+    - name: Build
+      working-directory: build
+      run: cmake --build . -j $(nproc --all)
+    - name: Prepare artifacts
+      run: |
+        mkdir artifacts
+        mv -v build/extract-xiso LICENSE.TXT artifacts
+    - uses: actions/upload-artifact@v2
+      with:
+        name: extract-xiso_${{ runner.os }}
+        path: artifacts
+
+  build-macos:
+    runs-on: macos-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: CMake generate
+      run: |
+        mkdir build && cd build
+        cmake ..
+    - name: Build
+      working-directory: build
+      run: cmake --build . -j $(sysctl -n hw.ncpu)
+    - name: Prepare artifacts
+      run: |
+        mkdir artifacts
+        mv -v build/extract-xiso LICENSE.TXT artifacts
+    - uses: actions/upload-artifact@v2
+      with:
+        name: extract-xiso_${{ runner.os }}
+        path: artifacts
