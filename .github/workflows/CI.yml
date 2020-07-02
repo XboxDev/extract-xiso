@@ -39,7 +39,7 @@ jobs:
     - name: Prepare artifacts
       run: |
         mkdir artifacts
-        mv -vb build\${{ matrix.configuration }}\extract-xiso.exe, LICENSE.TXT artifacts
+        mv -vb build\${{ matrix.configuration }}\extract-xiso.exe, LICENSE artifacts
     - uses: actions/upload-artifact@v2
       with:
         name: extract-xiso_${{ matrix.artifact_os }}_${{ matrix.configuration }}
@@ -59,7 +59,7 @@ jobs:
     - name: Prepare artifacts
       run: |
         mkdir artifacts
-        mv -v build/extract-xiso LICENSE.TXT artifacts
+        mv -v build/extract-xiso LICENSE artifacts
     - uses: actions/upload-artifact@v2
       with:
         name: extract-xiso_${{ runner.os }}
@@ -79,7 +79,7 @@ jobs:
     - name: Prepare artifacts
       run: |
         mkdir artifacts
-        mv -v build/extract-xiso LICENSE.TXT artifacts
+        mv -v build/extract-xiso LICENSE artifacts
     - uses: actions/upload-artifact@v2
       with:
         name: extract-xiso_${{ runner.os }}
