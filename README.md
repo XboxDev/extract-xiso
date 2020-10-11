@@ -97,11 +97,11 @@ After requirements are installed with your distribution's package manager (or ho
 git clone https://github.com/XboxDev/extract-xiso.git
 
 # cd into directory
-./extract-xiso
+cd extract-xiso
 
 # Create working directory
 mkdir build
-cd ./build
+cd build
 
 # Build project
 cmake ..
