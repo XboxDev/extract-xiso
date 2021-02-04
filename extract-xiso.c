@@ -229,7 +229,7 @@
 		01.11.14 twillecomme: Intégration of aiyyo's and somski's work. 
 						Minor warn fixes.
 
-		02.04.21 somski: Added redump-style images support
+		02.04.21 18woldemar: Added redump-style images support
 
 	enjoy!
 	
