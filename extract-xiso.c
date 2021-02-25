@@ -441,8 +441,9 @@
 #endif
 
 
-#define GLOBAL_LSEEK_OFFSET       0xFD90000ul
-#define XGD3_LSEEK_OFFSET         0x2080000ul
+#define GLOBAL_LSEEK_OFFSET       0x0FD90000ul
+#define XGD3_LSEEK_OFFSET         0x02080000ul
+#define XGD1_LSEEK_OFFSET         0x18300000ul
 
 #define n_sectors( size )				( ( size ) / XISO_SECTOR_SIZE + ( ( size ) % XISO_SECTOR_SIZE ? 1 : 0 ) )
 
@@ -882,18 +883,24 @@ int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_di
 	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
 	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) 
 	{
-    if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + GLOBAL_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
-    if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-    if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) {
-    
-      if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XGD3_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
-      if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-      if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s does not appear to be a valid xbox iso image\n", in_iso_name, 0, 0 )
-      else s_xbox_disc_lseek = XGD3_LSEEK_OFFSET;
-    }
-    else s_xbox_disc_lseek = GLOBAL_LSEEK_OFFSET;
-  }
-  else s_xbox_disc_lseek = 0;
+		if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + GLOBAL_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
+		if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
+		if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) )
+		{
+			if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XGD3_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
+			if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
+			if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH))
+			{
+				if (lseek(in_xiso, (xoff_t)XISO_HEADER_OFFSET + XGD1_LSEEK_OFFSET, SEEK_SET) == -1) seek_err();
+				if (!err && read(in_xiso, buffer, XISO_HEADER_DATA_LENGTH) != XISO_HEADER_DATA_LENGTH) read_err();
+				if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH)) misc_err("%s does not appear to be a valid xbox iso image\n", in_iso_name, 0, 0)
+				else s_xbox_disc_lseek = XGD1_LSEEK_OFFSET;
+			}
+			else s_xbox_disc_lseek = XGD3_LSEEK_OFFSET;
+		}
+		else s_xbox_disc_lseek = GLOBAL_LSEEK_OFFSET;
+	}
+	else s_xbox_disc_lseek = 0;
 
 	// read root directory information
 	if ( ! err && read( in_xiso, out_root_dir_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) read_err();
@@ -1022,7 +1029,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	}
 	if ( ! err ) {
 		if ( in_root ) {
-			if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XISO_HEADER_DATA_LENGTH + XISO_SECTOR_OFFSET_SIZE + XISO_DIRTABLE_SIZE, SEEK_SET ) == -1 ) seek_err();
+			if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XISO_HEADER_DATA_LENGTH + XISO_SECTOR_OFFSET_SIZE + XISO_DIRTABLE_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 			if ( ! err && read( in_xiso, buf, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) read_err();
 			if ( ! err && write( xiso, buf, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();			
 
@@ -1738,7 +1745,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 			if ( in_context->from == -1 ) {
 				if ( ( fd = open( in_avl->filename, READFLAGS, 0 ) ) == -1 ) open_err( in_avl->filename );
 			} else {
-				if ( lseek( fd = in_context->from, (xoff_t) in_avl->old_start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
+				if ( lseek( fd = in_context->from, (xoff_t) in_avl->old_start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 			}
 		}
 
