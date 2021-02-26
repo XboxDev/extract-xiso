@@ -1204,9 +1204,16 @@ read_entry:
 
 	if ( ! err ) {
 		if ( tmp == XISO_PAD_SHORT ) {
+			if ( l_offset == 0 ) {	// Directory is empty
+				if (in_mode == k_generate_avl) {
+					avl_insert(in_root, EMPTY_SUBDIRECTORY);
+				}
+				goto end_traverse;
+			}
+
 			l_offset = l_offset * XISO_DWORD_SIZE + ( XISO_SECTOR_SIZE - ( l_offset * XISO_DWORD_SIZE ) % XISO_SECTOR_SIZE );
 			err = lseek( in_xiso, in_dir_start + (xoff_t) l_offset, SEEK_SET ) == -1 ? 1 : 0;
-		
+
 			if ( ! err ) goto read_entry;		// me and my silly comments
 		} else {
 			l_offset = tmp;
@@ -1253,7 +1260,7 @@ read_entry:
 
 			avl->file_size = dir->file_size;
 			avl->old_start_sector = dir->start_sector;
-						
+
 			if ( avl_insert( in_root, avl ) == k_avl_error ) misc_err( "this iso appears to be corrupt\n", 0, 0, 0 );
 		}
 	}
@@ -1298,7 +1305,10 @@ left_processed:
 					if ( ( err = mkdir( dir->filename, 0755 ) ) ) mkdir_err( dir->filename );
 					if ( ! err && dir->start_sector && ( err = chdir( dir->filename ) ) ) chdir_err( dir->filename );
 				}
-				if ( ! err && in_mode != k_list && in_mode != k_generate_avl ) exiso_log( "creating %s (0 bytes) [OK]\n", path );
+				if( ! err && in_mode != k_generate_avl ) {
+					exiso_log("%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating " : "", in_path, dir->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
+					exiso_log("\n");
+				}
 			}
 			}
 			
@@ -1350,6 +1360,8 @@ left_processed:
 			goto read_entry;
 		}
 	}
+
+end_traverse:
 
 	if ( dir->filename ) free( dir->filename );
 	
@@ -1724,6 +1736,10 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				}
 				
 				if ( context.path ) free( context.path );
+			} else {
+				memset(sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE);
+				if ((pos = lseek(in_context->xiso, in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET)) == -1) seek_err();
+				if (!err && write(in_context->xiso, sector, XISO_SECTOR_SIZE) != XISO_SECTOR_SIZE) write_err();
 			}
 		}
 	}
@@ -1806,6 +1822,7 @@ int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
 	xoff_t				pos;
 	int					err = 0, pad;
 	unsigned short		l_offset, r_offset;
+	unsigned long		file_size = in_avl->file_size + (in_avl->subdirectory ? (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE  : 0);
 	char				length = (char) strlen( in_avl->filename ), attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC, sector[ XISO_SECTOR_SIZE ];
 		
 	little32( in_avl->file_size );
@@ -1824,7 +1841,7 @@ int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
 	if ( ! err && write( in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
 	if ( ! err && write( in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
 	if ( ! err && write( in_xiso, &in_avl->start_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) write_err();
-	if ( ! err && write( in_xiso, &in_avl->file_size, XISO_FILESIZE_SIZE ) != XISO_FILESIZE_SIZE ) write_err();
+	if ( ! err && write( in_xiso, &file_size, XISO_FILESIZE_SIZE ) != XISO_FILESIZE_SIZE ) write_err();
 	if ( ! err && write( in_xiso, &attributes, XISO_ATTRIBUTES_SIZE ) != XISO_ATTRIBUTES_SIZE ) write_err();
 	if ( ! err && write( in_xiso, &length, XISO_FILENAME_LENGTH_SIZE ) != XISO_FILENAME_LENGTH_SIZE ) write_err();
 	if ( ! err && write( in_xiso, in_avl->filename, length ) != length ) write_err();
@@ -1840,7 +1857,10 @@ int calculate_directory_offsets( dir_node_avl *in_avl, unsigned long *io_current
 	wdsafp_context			context;
 
 	if ( in_avl->subdirectory ) {
-		if ( in_avl->subdirectory == EMPTY_SUBDIRECTORY ) in_avl->start_sector = 0;
+		if (in_avl->subdirectory == EMPTY_SUBDIRECTORY) {
+			in_avl->start_sector = *io_current_sector;
+			*io_current_sector += 1;
+		}
 		else {
 			context.current_sector = io_current_sector;
 			context.dir_start = (xoff_t) ( in_avl->start_sector = *io_current_sector ) * XISO_SECTOR_SIZE;
@@ -1869,10 +1889,8 @@ int write_dir_start_and_file_positions( dir_node_avl *in_avl, wdsafp_context *io
 
 
 int calculate_total_files_and_bytes( dir_node_avl *in_avl, void *in_context, int in_depth ) {
-	if ( in_avl->subdirectory ) {
-		if ( in_avl->subdirectory != EMPTY_SUBDIRECTORY ) {
-			avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) calculate_total_files_and_bytes, nil, k_prefix, 0 );
-		}
+	if ( in_avl->subdirectory && in_avl->subdirectory != EMPTY_SUBDIRECTORY ) {
+		avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) calculate_total_files_and_bytes, nil, k_prefix, 0 );
 	} else {
 		++s_total_files;
 		s_total_bytes += in_avl->file_size;
@@ -1883,9 +1901,13 @@ int calculate_total_files_and_bytes( dir_node_avl *in_avl, void *in_context, int
 
 
 int calculate_directory_requirements( dir_node_avl *in_avl, void *in_context, int in_depth ) {
-	if ( in_avl->subdirectory && in_avl->subdirectory != EMPTY_SUBDIRECTORY ) {
-		avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) calculate_directory_size, &in_avl->file_size, k_prefix, 0 );
-		avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) calculate_directory_requirements, in_context, k_prefix, 0 );
+	if ( in_avl->subdirectory ) {
+		if (in_avl->subdirectory != EMPTY_SUBDIRECTORY) {
+			avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)calculate_directory_size, &in_avl->file_size, k_prefix, 0);
+			avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)calculate_directory_requirements, in_context, k_prefix, 0);
+		} else {
+			in_avl->file_size = XISO_SECTOR_SIZE;
+		}
 	}
 	
 	return 0;
