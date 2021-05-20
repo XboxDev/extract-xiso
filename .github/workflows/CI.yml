@@ -116,8 +116,8 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_name: xemu-win-release.zip
-        asset_path: dist/xemu-win-release.zip
+        asset_name: extract-xiso-win-release.zip
+        asset_path: extract-xiso-win-release.zip
         asset_content_type: application/zip
     - name: Upload Release Assets (macOS Release Build)
       id: upload-release-asset-macos-release
