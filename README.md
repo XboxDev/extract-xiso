@@ -3,7 +3,7 @@
 
 A command line utility created by [*in*](mailto:in@fishtank.com) to allow the creation, modification, and extraction of XISOs. Currently being maintained and modernized by the [*XboxDev organization*](https://github.com/XboxDev/XboxDev).
 
-[**Click Here Latest Windows Build**](https://ci.appveyor.com/api/projects/xboxdev-bot/extract-xiso/artifacts/export/Release.zip?branch=master)
+[**Click Here Latest Windows Build**](https://drive.google.com/uc?id=1AWMgRm4GoOzUS0D9eQCVVy3XzajpBQnP&export=download)
 
 ## Features
 
@@ -86,7 +86,7 @@ Extract XISO contents to a directory.
 
 ### Windows
 
-We currently don't have build instructions for Windows, please use the [AppVeyor Build](https://ci.appveyor.com/api/projects/xboxdev-bot/extract-xiso/artifacts/export/Release.zip?branch=master).
+We currently don't have build instructions for Windows, please use the [Windows Build](https://drive.google.com/uc?id=1AWMgRm4GoOzUS0D9eQCVVy3XzajpBQnP&export=download).
 
 ### macOS / Linux
 
