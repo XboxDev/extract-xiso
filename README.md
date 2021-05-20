@@ -86,7 +86,26 @@ Extract XISO contents to a directory.
 
 ### Windows
 
-We currently don't have build instructions for Windows, please use the [AppVeyor Build](https://ci.appveyor.com/api/projects/xboxdev-bot/extract-xiso/artifacts/export/Release.zip?branch=master).
+If you would like to download the Windows Build, click [here](https://drive.google.com/uc?id=1AWMgRm4GoOzUS0D9eQCVVy3XzajpBQnP&export=download)
+
+If you would like to build from source, you can do so by downloading the [MSYS2 environment](https://www.msys2.org/). After installing MSYS2, you'll need to launch "MSYS2 MinGW 64-bit", otherwise, you may see build failures for missing 'cc'.
+
+```
+# Install Dependencies
+pacman --needed --noconfirm -S git make cmake gcc
+# Clone Repo
+git clone https://github.com/XboxDev/extract-xiso.git
+# cd into directory
+cd extract-xiso
+# Create working directory
+mkdir build
+cd build
+# Build project
+cmake ..
+make
+```
+
+The compiled binary should now be in the `extract-xiso/build` directory as `extract-xiso`.
 
 ### macOS / Linux
 
