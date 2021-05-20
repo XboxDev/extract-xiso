@@ -93,13 +93,17 @@ If you would like to build from source, you can do so by downloading the [MSYS2 
 ```
 # Install Dependencies
 pacman --needed --noconfirm -S git make cmake gcc
+
 # Clone Repo
 git clone https://github.com/XboxDev/extract-xiso.git
+
 # cd into directory
 cd extract-xiso
+
 # Create working directory
 mkdir build
 cd build
+
 # Build project
 cmake ..
 make
