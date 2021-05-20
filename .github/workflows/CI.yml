@@ -88,17 +88,17 @@ jobs:
   Release:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/xemu-v'))
     runs-on: windows-latest
-    needs: [Windows, macOS]
+    needs: [build-windows]
     env:
       BUILD_TAG:
     steps:
     - name: Download Artifacts
       uses: actions/download-artifact@v1
       with:
-        name: dist
+        name: extract-xiso_Win64_Release
     - name: Get Package Info
       run: |
-        echo "BUILD_TAG=$(cat dist/tag)" >> $GITHUB_ENV
+        echo "BUILD_TAG=$(cat tag)" >> $GITHUB_ENV
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
