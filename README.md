@@ -86,7 +86,7 @@ Extract XISO contents to a directory.
 
 ### Windows
 
-If you would like to download the Windows Build, click [here](https://drive.google.com/uc?id=1AWMgRm4GoOzUS0D9eQCVVy3XzajpBQnP&export=download)
+If you would like to download the Windows Build, click [here](https://github.com/XboxDev/extract-xiso/releases)
 
 If you would like to build from source, you can do so by downloading the [MSYS2 environment](https://www.msys2.org/). After installing MSYS2, you'll need to launch "MSYS2 MinGW 64-bit", otherwise, you may see build failures for missing 'cc'.
 
