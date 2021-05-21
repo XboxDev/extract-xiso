@@ -11,8 +11,24 @@ on:
       - '*.yml'
 
 jobs:
+  Init:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Create Build Tag
+      run: |
+        export BUILD_TAG=build-$(date -u +'%Y%m%d%H%M')
+        echo "BUILD_TAG=$BUILD_TAG" >> $GITHUB_ENV
+        mkdir -p artifacts
+        echo -n $BUILD_TAG > artifacts/tag
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v1
+      with:
+        name: artifacts
+        path: artifacts
+        
   build-windows:
     runs-on: windows-latest
+    needs: [Init]
     env:
       POWERSHELL_TELEMETRY_OPTOUT: 1
     strategy:
@@ -47,6 +63,7 @@ jobs:
 
   build-linux:
     runs-on: ubuntu-latest
+    needs: [Init]
     steps:
     - uses: actions/checkout@v2
     - name: CMake generate
@@ -67,6 +84,7 @@ jobs:
 
   build-macos:
     runs-on: macos-latest
+    needs: [Init]
     steps:
     - uses: actions/checkout@v2
     - name: CMake generate
@@ -84,21 +102,21 @@ jobs:
       with:
         name: extract-xiso_${{ runner.os }}
         path: artifacts
-
+        
   Release:
     if: github.event_name == 'push' && (github.ref == 'refs/heads/master' || startsWith(github.ref, 'refs/tags/xemu-v'))
-    runs-on: windows-latest
-    needs: [build-windows]
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-linux, build-macos]
     env:
       BUILD_TAG:
     steps:
     - name: Download Artifacts
       uses: actions/download-artifact@v1
       with:
-        name: extract-xiso_Win64_Release
+        name: artifacts
     - name: Get Package Info
       run: |
-        echo "BUILD_TAG=$(cat tag)" >> $GITHUB_ENV
+        echo "BUILD_TAG=$(cat artifacts/tag)" >> $GITHUB_ENV
     - name: Create Release
       id: create_release
       uses: actions/create-release@v1
@@ -109,24 +127,29 @@ jobs:
         release_name: ${{ env.BUILD_TAG }}
         draft: false
         prerelease: false
-    - name: Upload Release Assets (Windows Release Build)
+    - name: Upload Release Assets (Windows)
       id: upload-release-asset-win-release
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_name: extract-xiso-win-release.zip
-        asset_path: extract-xiso-win-release.zip
+        asset_name: extract-xiso_Win64_Release
+        asset_path: artifacts/extract-xiso_Win64_Release
         asset_content_type: application/zip
-    - name: Upload Release Assets (macOS Release Build)
+    - name: Download Release Assets (macOS)
+      id: download-release-asset-macos-release
+      uses: actions/download-artifact@v2
+      with:
+        name: extract-xiso_macOS
+        path: artifacts
+    - name: Upload Release Assets (macOS)
       id: upload-release-asset-macos-release
       uses: actions/upload-release-asset@v1.0.1
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_name: extract-xiso-macos-release.zip
-        asset_path: extract-xiso-macos-release.zip
+        asset_name: extract-xiso_macOS
+        asset_path: artifacts/extract-xiso_macOS
         asset_content_type: application/zip
-
