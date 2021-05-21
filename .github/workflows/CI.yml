@@ -137,12 +137,6 @@ jobs:
         asset_name: extract-xiso_Win64_Release
         asset_path: artifacts/extract-xiso_Win64_Release
         asset_content_type: application/zip
-    - name: Download Release Assets (macOS)
-      id: download-release-asset-macos-release
-      uses: actions/download-artifact@v2
-      with:
-        name: extract-xiso_macOS
-        path: artifacts
     - name: Upload Release Assets (macOS)
       id: upload-release-asset-macos-release
       uses: actions/upload-release-asset@v1.0.1
