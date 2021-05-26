@@ -84,34 +84,8 @@ Extract XISO contents to a directory.
 - make
 - gcc
 
-### Windows
 
-If you would like to download the Windows Build, click [here](https://github.com/XboxDev/extract-xiso/releases)
-
-If you would like to build from source, you can do so by downloading the [MSYS2 environment](https://www.msys2.org/).
-
-```
-# Install Dependencies
-pacman --needed --noconfirm -S git make cmake gcc
-
-# Clone Repo
-git clone https://github.com/XboxDev/extract-xiso.git
-
-# cd into directory
-cd extract-xiso
-
-# Create working directory
-mkdir build
-cd build
-
-# Build project
-cmake ..
-make
-```
-
-The compiled binary should now be in the `extract-xiso/build` directory as `extract-xiso`.
-
-### macOS / Linux
+### Windows / macOS / Linux
 
 After requirements are installed with your distribution's package manager (or homebrew for macOS), open terminal and change directory to the project root. Then run the following build commands:
 
