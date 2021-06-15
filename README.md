@@ -84,11 +84,7 @@ Extract XISO contents to a directory.
 - make
 - gcc
 
-### Windows
-
-We currently don't have build instructions for Windows, please use the [AppVeyor Build](https://ci.appveyor.com/api/projects/xboxdev-bot/extract-xiso/artifacts/export/Release.zip?branch=master).
-
-### macOS / Linux
+### Windows / macOS / Linux
 
 After requirements are installed with your distribution's package manager (or homebrew for macOS), open terminal and change directory to the project root. Then run the following build commands:
 
