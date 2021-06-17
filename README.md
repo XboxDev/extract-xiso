@@ -11,6 +11,8 @@ A command line utility created by [*in*](mailto:in@fishtank.com) to allow the cr
 
 - Extract XISO content to a directory.
 
+- Convert Redumps to an XISO
+
 - Multi-Platform and Open-Source.
 
 ## Usage
