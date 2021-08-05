@@ -13,6 +13,8 @@ A command line utility created by [*in*](mailto:in@fishtank.com) to allow the cr
 
 - Multi-Platform and Open-Source.
 
+- Can Convert XGD4 (Redump) backups to XISO
+
 ## Usage
 
 The `extract-xiso` utility can run in multiple modes: *create*, *list*, *rewrite*, and *extract*.
