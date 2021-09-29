@@ -3,7 +3,7 @@
 
 A command line utility created by [*in*](mailto:in@fishtank.com) to allow the creation, modification, and extraction of XISOs. Currently being maintained and modernized by the [*XboxDev organization*](https://github.com/XboxDev/XboxDev).
 
-[**Click Here Latest Windows Build**](https://ci.appveyor.com/api/projects/xboxdev-bot/extract-xiso/artifacts/export/Release.zip?branch=master)
+**Notice:** 64-bit builds can work but have been known to create faulty images. Until this is fixed, use 32b builds.
 
 ## Features
 
