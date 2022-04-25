@@ -9,4 +9,4 @@ set(SOURCE_FILES
 
 add_executable(extract-xiso ${SOURCE_FILES})
 target_compile_definitions(extract-xiso PRIVATE ${TARGET_OS})
-install(TARGETS extract-xiso RUNTIME DESTINATION "${INSTALL_PREFIX}/bin")
+install(TARGETS extract-xiso RUNTIME DESTINATION "${CMAKE_INSTALL_PREFIX}/bin")
