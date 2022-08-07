@@ -1650,6 +1650,14 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 	
 		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 
+	// preallocate this file if it's not tiny
+	if(in_file->file_size >= (READWRITE_BUFFER_SIZE * 2))
+	{
+		if ( lseek( out, (xoff_t) in_file->file_size-1, SEEK_SET ) == -1 ) seek_err();
+		if ( write( out, "\0", 1 ) != (int) 1 ) write_err();
+		if ( lseek( out, (xoff_t) 0, SEEK_SET ) == -1 ) seek_err();
+	}
+
 	if ( ! err ) {
 			if ( in_file->file_size == 0 )
 				exiso_log( "%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, "" );
@@ -1754,6 +1762,12 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 	int				err = 0, fd = -1, i;
 
 	if ( ! in_avl->subdirectory ) {
+		// preallocate the space for this file if it's not tiny
+		if(in_avl->file_size >= (READWRITE_BUFFER_SIZE * 2))
+		{
+			if ( lseek( in_context->xiso, (xoff_t) (in_avl->start_sector * XISO_SECTOR_SIZE) + in_avl->file_size - 1, SEEK_SET ) == -1 ) seek_err();
+			if ( write( in_context->xiso, "\0", 1 ) != (int) 1 ) write_err();
+		}
 		if ( lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 		
 		if ( ! err && ( buf = (char *) malloc( ( size = max( XISO_SECTOR_SIZE, READWRITE_BUFFER_SIZE ) ) + 1 ) ) == nil ) mem_err();
