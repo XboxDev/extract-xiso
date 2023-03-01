@@ -999,8 +999,6 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 		
 		s_total_bytes = s_total_files = 0;
 		
-		if ( root.subdirectory == EMPTY_SUBDIRECTORY ) root.start_sector = root.file_size = 0;
-		
 		start_sector = root.start_sector;
 		
 		avl_traverse_depth_first( &root, (traversal_callback) calculate_directory_requirements, nil, k_prefix, 0 );
@@ -1047,7 +1045,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	}
 	if ( ! err && ( root.filename = strdup( iso_dir ) ) == nil ) mem_err();
 
-	if ( ! err && root.start_sector && lseek( xiso, (xoff_t) root.start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && lseek( xiso, (xoff_t) root.start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 	if ( ! err ) {
 		wt_context.path = nil;
 		wt_context.xiso = xiso;
