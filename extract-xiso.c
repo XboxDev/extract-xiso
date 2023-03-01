@@ -1294,7 +1294,7 @@ left_processed:
 			
 				if ( ! err ) {
 					sprintf( path, "%s%s%c", in_path, dir->filename, PATH_CHAR );
-					if ( dir->start_sector && lseek( in_xiso, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
+					if ( lseek( in_xiso, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 				}
 			} else path = nil;
 	
@@ -1303,7 +1303,7 @@ left_processed:
 				{
 				if ( in_mode == k_extract ) {
 					if ( ( err = mkdir( dir->filename, 0755 ) ) ) mkdir_err( dir->filename );
-					if ( ! err && dir->start_sector && ( err = chdir( dir->filename ) ) ) chdir_err( dir->filename );
+					if ( ! err && ( err = chdir( dir->filename ) ) ) chdir_err( dir->filename );
 				}
 				if( ! err && in_mode != k_generate_avl ) {
 					exiso_log("%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating " : "", in_path, dir->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
@@ -1312,7 +1312,7 @@ left_processed:
 			}
 			}
 			
-			if ( ! err && dir->start_sector ) {
+			if ( ! err ) {
 				memcpy( &subdir, dir, sizeof(dir_node) );
 				
 				subdir.parent = nil;
