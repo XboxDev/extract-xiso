@@ -1631,55 +1631,52 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 
 
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
-	char					c;
 	int						err = 0;
 	bool					warn = false;
-	uint32_t				i, size, totalsize = 0, totalpercent = 0;
+	uint32_t				i, size, read_size, totalsize = 0, totalpercent = 0;
 	int						out;
 
-	if ( s_remove_systemupdate && strstr( path, s_systemupdate ) )
-	{
+	if ( s_remove_systemupdate && strstr( path, s_systemupdate ) ){
 		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
-		}
-	else
-	{
-
-	if ( in_mode == k_extract ) {
-		if ( ( out = open( in_file->filename, WRITEFLAGS, 0644 ) ) == -1 ) open_err( in_file->filename );
-	}  else err = 1;
+	}
+	else {
+		if ( in_mode == k_extract ) {
+			if ( ( out = open( in_file->filename, WRITEFLAGS, 0644 ) ) == -1 ) open_err( in_file->filename );
+		} else err = 1;
 	
 		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 
-	if ( ! err ) {
-			if ( in_file->file_size == 0 )
-				exiso_log( "%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, "" );
-		if ( in_mode == k_extract ) {
-			for ( i = 0, size = min( in_file->file_size, READWRITE_BUFFER_SIZE );
-				  i < in_file->file_size && read( in_xiso, s_copy_buffer, size ) == (int) size;
-				  i += size, size = min( in_file->file_size - i, READWRITE_BUFFER_SIZE ) )
-			{
-				if ( write( out, s_copy_buffer, size ) != (int) size ) {
-					write_err();
-					break;
-				}
-					totalsize += size;
-					totalpercent = ( totalsize * 100.0 ) / in_file->file_size;
-					exiso_log( "%s%s%s (%u bytes) [%u%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size , totalpercent, "" );
+		if ( ! err ) {
+			if (in_file->file_size == 0) {
+				exiso_log("%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, "");
 			}
-			
-			close( out );
-		} else {
-			for ( i = 0, size = min( in_file->file_size, READWRITE_BUFFER_SIZE );
-				  i < in_file->file_size && read( in_xiso, s_copy_buffer, size ) == (int) size;
-				  i += size, size = min( in_file->file_size - i, READWRITE_BUFFER_SIZE ) )
-			{
-					totalsize += size;
-					totalpercent = ( totalsize * 100.0 ) / in_file->file_size;
-					exiso_log( "%s%s%s (%u bytes) [%u%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size , totalpercent, "" );
-			}
-		}
-	}
+			else {
+				i = 0;
+				size = min(in_file->file_size, READWRITE_BUFFER_SIZE);
+				do {
+					if ((int)(read_size = read(in_xiso, s_copy_buffer, size)) < 0) {
+						read_err();
+						break;
+					}
+					if (in_mode == k_extract && read_size != 0) {
+						if (write(out, s_copy_buffer, read_size) != (int)read_size) {
+							write_err();
+							break;
+						}
+					}
+					totalsize += read_size;
+					totalpercent = (totalsize * 100.0) / in_file->file_size;
+					exiso_log("%s%s%s (%u bytes) [%u%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size, totalpercent, "");
 
+					i += read_size;
+					size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
+				} while (i < in_file->file_size && read_size > 0);
+				if (!err && i < in_file->file_size) {
+					exiso_log("\nWARNING: File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
+				}
+			}
+			if (in_mode == k_extract) close(out);
+		}
 	}
 
 	if ( ! err ) exiso_log( "\n" );
@@ -1752,6 +1749,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 	char		   *buf, *p;
 	uint32_t		bytes, n, size;
 	int				err = 0, fd = -1, i;
+	size_t			len;
 
 	if ( ! in_avl->subdirectory ) {
 		if ( lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
@@ -1768,45 +1766,63 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		if ( ! err ) {
 			exiso_log( "adding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
 
-			if ( s_media_enable && ( i = (int) strlen( in_avl->filename ) ) >= 4 && in_avl->filename[ i - 4 ] == '.' && ( in_avl->filename[ i - 3 ] | 0x20 ) == 'x' && ( in_avl->filename[ i - 2 ] | 0x20 ) == 'b' && ( in_avl->filename[ i - 1 ] | 0x20 ) == 'e' ) {
-				for ( bytes = in_avl->file_size, i = 0; ! err && bytes; ) {
-					if ( ( n = read( fd, buf + i, min( bytes, size - i ) ) ) == -1 ) read_err();
-					
-					bytes -= n;
-										
-					if ( ! err ) {
-						for ( buf[ n += i ] = 0, p = buf; ( p = boyer_moore_search( p, n - ( p - buf ) ) ) != nil; p += XISO_MEDIA_ENABLE_LENGTH ) p[ XISO_MEDIA_ENABLE_BYTE_POS ] = XISO_MEDIA_ENABLE_BYTE;
-					
-						if ( bytes ) {
-							if ( write( in_context->xiso, buf, n - ( i = XISO_MEDIA_ENABLE_LENGTH - 1 ) ) != (int) n - i ) write_err();
-							
-							if ( ! err ) memcpy( buf, &buf[ n - ( XISO_MEDIA_ENABLE_LENGTH - 1 ) ], XISO_MEDIA_ENABLE_LENGTH - 1 );
-						} else {
-							if ( write( in_context->xiso, buf, n + i ) != (int) n + i ) write_err();
+			i = 0;
+			bytes = in_avl->file_size;
+			do {
+				if ((int)(n = read(fd, buf + i, min(bytes, size - i))) < 0) {
+					read_err();
+					break;
+				}
+				if (n == 0) {
+					if (i) {
+						if (write(in_context->xiso, buf, i) != i) {
+							write_err();
+							break;
+						}
+					}
+					break;
+				}
+				bytes -= n;
+				if (s_media_enable && (len = strlen(in_avl->filename)) >= 4 && in_avl->filename[len - 4] == '.' && (in_avl->filename[len - 3] | 0x20) == 'x' && (in_avl->filename[len - 2] | 0x20) == 'b' && (in_avl->filename[len - 1] | 0x20) == 'e') {
+					for (buf[n += i] = 0, p = buf; (p = boyer_moore_search(p, n - (p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
+					if (bytes) {
+						i = XISO_MEDIA_ENABLE_LENGTH - 1;
+						if (write(in_context->xiso, buf, n - i) != (int)n - i) {
+							write_err();
+							break;
+						}
+						memcpy(buf, &buf[n - i], i);
+					}
+					else {
+						if (write(in_context->xiso, buf, n + i) != (int)n + i) {
+							write_err();
+							break;
 						}
 					}
 				}
-			} else {
-				for ( bytes = in_avl->file_size; ! err && bytes; bytes -= n ) {
-					if ( ( n = read( fd, buf, min( bytes, size ) ) ) == -1 ) read_err();
-	
-					if ( ! err && write( in_context->xiso, buf, n ) != (int) n ) write_err();
+				else {
+					if (write(in_context->xiso, buf, n + i) != (int)n + i) {
+						write_err();
+						break;
+					}
 				}
-			}
-			
-			if ( ! err && ( bytes = ( XISO_SECTOR_SIZE - ( in_avl->file_size % XISO_SECTOR_SIZE ) ) % XISO_SECTOR_SIZE ) ) {
-				memset( buf, XISO_PAD_BYTE, bytes );
-				if ( write( in_context->xiso, buf, bytes ) != (int) bytes ) write_err();
-			}
-			
-			if ( err ) { exiso_log( "failed\n" ); }
-			else {
-				exiso_log( "[OK]\n" );
+			} while (bytes);
+			i = in_avl->file_size - bytes;
 
+			if (!err && (bytes = (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE)) {
+				memset(buf, XISO_PAD_BYTE, bytes);
+				if (write(in_context->xiso, buf, bytes) != (int)bytes) write_err();
+			}
+			exiso_log(err ? "failed\n" : "[OK]\n");
+
+			if (!err && i != in_avl->file_size) {
+				exiso_log("WARNING: File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!\n", in_avl->filename, in_avl->file_size, i);
+			}
+
+			if (!err) {
 				++s_total_files;
 				s_total_bytes += in_avl->file_size;
-
-				if ( in_context->progress ) (*in_context->progress)( s_total_bytes, in_context->final_bytes );
+				if (in_context->progress) (*in_context->progress)(s_total_bytes, in_context->final_bytes);
 			}
 		}
 				
