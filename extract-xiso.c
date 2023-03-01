@@ -266,6 +266,13 @@
 	#include <unistd.h>
 #endif
 
+#if defined(_MSC_VER)
+	#define strcasecmp	_stricmp
+	#define strncasecmp	_strnicmp
+#else
+	#include <strings.h>
+#endif
+
 
 #if defined( __DARWIN__ )
 	#define exiso_target				"macos-x"
@@ -323,7 +330,7 @@
 	#define S_ISREG( x )				( ( x ) & _S_IFREG )
 
 	#include "win32/getopt.c"
-#ifdef _MSC_VER
+#if defined(_MSC_VER)
 	#include "win32/asprintf.c"
 #endif
 	#define lseek						_lseeki64
@@ -1110,7 +1117,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		len = (int) strlen( name );
 
 		// create a directory of the same name as the file we are working on, minus the ".iso" portion
-		if ( len > 4 && name[ len - 4 ] == '.' && ( name[ len - 3 ] | 0x20 ) == 'i' && ( name[ len - 2 ] | 0x20 ) == 's' && ( name[ len - 1 ] | 0x20 ) == 'o' ) {
+		if (len > 4 && strcasecmp(&name[len - 4], ".iso") == 0) {
 			name[ len -= 4 ] = 0;
 			if ( ( short_name = strdup( name ) ) == nil ) mem_err();
 			name[ len ] = '.';
@@ -1785,7 +1792,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 					break;
 				}
 				bytes -= n;
-				if (s_media_enable && (len = strlen(in_avl->filename)) >= 4 && in_avl->filename[len - 4] == '.' && (in_avl->filename[len - 3] | 0x20) == 'x' && (in_avl->filename[len - 2] | 0x20) == 'b' && (in_avl->filename[len - 1] | 0x20) == 'e') {
+				if (s_media_enable && (len = strlen(in_avl->filename)) >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0) {
 					for (buf[n += i] = 0, p = buf; (p = boyer_moore_search(p, n - (p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
 					if (bytes) {
 						i = XISO_MEDIA_ENABLE_LENGTH - 1;
