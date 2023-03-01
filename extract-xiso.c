@@ -1671,6 +1671,7 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 				} while (i < in_file->file_size && read_size > 0);
 				if (!err && i < in_file->file_size) {
 					exiso_log("\nWARNING: File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
+					in_file->file_size = i;
 				}
 			}
 			if (in_mode == k_extract) close(out);
@@ -1717,15 +1718,18 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				if ( in_context->from == -1 ) {
 					if ( chdir( in_avl->filename ) == -1 ) chdir_err( in_avl->filename );
 				}
-				if ( ! err && lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
-				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_directory, (void *) in_context->xiso, k_prefix, 0 );
-				if ( ! err && ( pos = lseek( in_context->xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
-				if ( ! err && ( pad = (int) (( XISO_SECTOR_SIZE - ( pos % XISO_SECTOR_SIZE ) ) % XISO_SECTOR_SIZE) ) ) {
-					memset( sector, XISO_PAD_BYTE, pad );
-					if ( write( in_context->xiso, sector, pad ) != pad ) write_err();
-				}
+
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_file, &context, k_prefix, 0 );
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_tree, &context, k_prefix, 0 );
+
+				if (!err && lseek(in_context->xiso, (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
+				if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, (void*)in_context->xiso, k_prefix, 0);
+				if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
+				if (!err && (pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE))) {
+					memset(sector, XISO_PAD_BYTE, pad);
+					if (write(in_context->xiso, sector, pad) != pad) write_err();
+				}
+
 				if ( ! err && in_context->from == -1 ) {
 					if ( chdir( ".." ) == -1 ) chdir_err( ".." );
 				}
@@ -1805,7 +1809,8 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 					}
 				}
 			} while (bytes);
-			i = in_avl->file_size - bytes;
+			i = in_avl->file_size;
+			in_avl->file_size -= bytes;
 
 			if (!err && (bytes = (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE)) {
 				memset(buf, XISO_PAD_BYTE, bytes);
@@ -1814,7 +1819,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 			exiso_log(err ? "failed\n" : "[OK]\n");
 
 			if (!err && i != in_avl->file_size) {
-				exiso_log("WARNING: File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!\n", in_avl->filename, in_avl->file_size, i);
+				exiso_log("WARNING: File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!\n", in_avl->filename, i, in_avl->file_size);
 			}
 
 			if (!err) {
