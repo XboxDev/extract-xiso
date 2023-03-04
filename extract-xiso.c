@@ -802,11 +802,10 @@ int main( int argc, char **argv ) {
 						exiso_log( "%s is already optimized, skipping...\n", argv[ i ] );
 						continue;
 					}
-				
-					if ( ! err && ( buf = (char *) malloc( strlen( argv[ i ] ) + 5 ) ) == nil ) mem_err();	// + 5 magic number is for ".old\0"
+
 					if ( ! err ) {
-						sprintf( buf, "%s.old", argv[ i ] );
-						if ( stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s\n", buf, argv[ i ], 0 );
+						if (asprintf(&buf, "%s.old", argv[i]) == -1) mem_err();
+						if ( ! err && stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s\n", buf, argv[ i ], 0 );
 						if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s\n", argv[ i ], buf, 0 );
 						
 						if ( err ) { err = 0; free( buf ); continue; }
@@ -1151,10 +1150,8 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 			if ( in_path[ path_len - 1 ] != PATH_CHAR ) ++add_slash;
 		}
 		
-		if ( ( buf = (char *) malloc( path_len + add_slash + strlen( iso_name ) + 2 ) ) == nil ) mem_err();
-		
-		if ( ! err ) {
-			sprintf( buf, "%s%s%s%c", in_path ? in_path : "", add_slash && ( ! in_path ) ? PATH_CHAR_STR : "", in_mode != k_list && ( ! in_path ) ? iso_name : "", PATH_CHAR );
+		if (!err) {
+			if (asprintf(&buf, "%s%s%s%c", in_path ? in_path : "", add_slash && (!in_path) ? PATH_CHAR_STR : "", in_mode != k_list && (!in_path) ? iso_name : "", PATH_CHAR) == -1) mem_err()
 
 			if (!err && lseek(xiso, (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
 
@@ -1166,7 +1163,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 				if (!err) err = traverse_xiso(xiso, (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, 0, buf, in_mode, nil);
 			}
 			
-			free( buf );
+			if(buf) free(buf);
 		}
 	}
 	
