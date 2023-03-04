@@ -334,7 +334,7 @@
 	#include "win32/asprintf.c"
 #endif
 	#define lseek						_lseeki64
-	#define mkdir( a, b )				mkdir( a )
+	#define mkdir( a, b )				_mkdir( (a) )
 
 	typedef __int32						int32_t;
     typedef __int64                     xoff_t;
@@ -598,7 +598,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 FILE_TIME *alloc_filetime_now( void );
 int generate_avl_tree_local( dir_node_avl **out_root, int *io_n );
 int generate_avl_tree_remote( dir_node_avl **out_root, int *io_n );
-int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth );
+int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int in_depth );
 int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_depth );
 int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_depth );
 int calculate_total_files_and_bytes( dir_node_avl *in_avl, void *in_context, int in_depth );
@@ -1058,9 +1058,12 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	}
 
 	if ( ! err && ( pos = lseek( xiso, (xoff_t) 0, SEEK_END ) ) == -1 ) seek_err();
-	if ( ! err && write( xiso, buf, i = (int) (( XISO_FILE_MODULUS - pos % XISO_FILE_MODULUS ) % XISO_FILE_MODULUS) ) != i ) write_err();
+	if (!err) {
+		i = (int)((XISO_FILE_MODULUS - pos % XISO_FILE_MODULUS) % XISO_FILE_MODULUS);
+		if (write(xiso, buf, i) != i) write_err();
+	}
 
-	if ( ! err ) err = write_volume_descriptors( xiso, ( pos + (xoff_t) i ) / XISO_SECTOR_SIZE );
+	if ( ! err ) err = write_volume_descriptors( xiso, (uint32_t)((pos + (xoff_t)i) / XISO_SECTOR_SIZE) );
 
 	if ( ! err && lseek( xiso, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
 	if ( ! err && write( xiso, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) write_err();
@@ -1123,7 +1126,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 
 	if ( ! err && in_mode == k_extract && in_path ) {
 		if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
-		if ( ! err && mkdir( in_path, 0755 ) );
+		if ( ! err && mkdir( in_path, 0755 ) == -1 ) mkdir_err( in_path );
 		if ( ! err && chdir( in_path ) == -1 ) chdir_err( in_path );
 	}
 
@@ -1587,7 +1590,8 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 	int						err = 0;
 	bool					warn = false;
-	uint32_t				i, size, read_size, totalsize = 0, totalpercent = 0;
+	uint32_t				i, size, read_size, totalsize = 0;
+	float					totalpercent = 0.0f;
 	int						out;
 
 	if ( s_remove_systemupdate && strstr( path, s_systemupdate ) ){
@@ -1619,8 +1623,8 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 						}
 					}
 					totalsize += read_size;
-					totalpercent = (totalsize * 100.0) / in_file->file_size;
-					exiso_log("%s%s%s (%u bytes) [%u%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size, totalpercent, "");
+					totalpercent = (totalsize * 100.0f) / in_file->file_size;
+					exiso_log("%s%s%s (%u bytes) [%.1f%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size, totalpercent, "");
 
 					i += read_size;
 					size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
@@ -1679,7 +1683,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_tree, &context, k_prefix, 0 );
 
 				if (!err && lseek(in_context->xiso, (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
-				if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, (void*)in_context->xiso, k_prefix, 0);
+				if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, in_context, k_prefix, 0);
 				if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
 				if (!err && (pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE))) {
 					memset(sector, XISO_PAD_BYTE, pad);
@@ -1742,7 +1746,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				}
 				bytes -= n;
 				if (s_media_enable && (len = strlen(in_avl->filename)) >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0) {
-					for (buf[n += i] = 0, p = buf; (p = boyer_moore_search(p, n - (p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
+					for (buf[n += i] = 0, p = buf; (p = boyer_moore_search(p, n - (long)(p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
 					if (bytes) {
 						i = XISO_MEDIA_ENABLE_LENGTH - 1;
 						if (write(in_context->xiso, buf, n - i) != (int)n - i) {
@@ -1793,7 +1797,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 }
 
 
-int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
+int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int in_depth ) {
 	xoff_t				pos;
 	int					err = 0, pad;
 	uint16_t			l_offset, r_offset;
@@ -1811,15 +1815,15 @@ int write_directory( dir_node_avl *in_avl, int in_xiso, int in_depth ) {
 	
 	memset( sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE );
 	
-	if ( ( pos = lseek( in_xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
-	if ( ! err && ( pad = (int) ( (xoff_t) in_avl->offset + in_avl->dir_start - pos ) ) && write( in_xiso, sector, pad ) != pad ) write_err();
-	if ( ! err && write( in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
-	if ( ! err && write( in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
-	if ( ! err && write( in_xiso, &in_avl->start_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) write_err();
-	if ( ! err && write( in_xiso, &file_size, XISO_FILESIZE_SIZE ) != XISO_FILESIZE_SIZE ) write_err();
-	if ( ! err && write( in_xiso, &attributes, XISO_ATTRIBUTES_SIZE ) != XISO_ATTRIBUTES_SIZE ) write_err();
-	if ( ! err && write( in_xiso, &length, XISO_FILENAME_LENGTH_SIZE ) != XISO_FILENAME_LENGTH_SIZE ) write_err();
-	if ( ! err && write( in_xiso, in_avl->filename, length ) != length ) write_err();
+	if ( ( pos = lseek( in_context->xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
+	if ( ! err && ( pad = (int) ( (xoff_t) in_avl->offset + in_avl->dir_start - pos ) ) && write( in_context->xiso, sector, pad ) != pad ) write_err();
+	if ( ! err && write( in_context->xiso, &l_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
+	if ( ! err && write( in_context->xiso, &r_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
+	if ( ! err && write( in_context->xiso, &in_avl->start_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) write_err();
+	if ( ! err && write( in_context->xiso, &file_size, XISO_FILESIZE_SIZE ) != XISO_FILESIZE_SIZE ) write_err();
+	if ( ! err && write( in_context->xiso, &attributes, XISO_ATTRIBUTES_SIZE ) != XISO_ATTRIBUTES_SIZE ) write_err();
+	if ( ! err && write( in_context->xiso, &length, XISO_FILENAME_LENGTH_SIZE ) != XISO_FILENAME_LENGTH_SIZE ) write_err();
+	if ( ! err && write( in_context->xiso, in_avl->filename, length ) != length ) write_err();
 	
 	little32( in_avl->start_sector );
 	little32( in_avl->file_size );
@@ -1894,7 +1898,7 @@ int calculate_directory_size( dir_node_avl *in_avl, uint32_t *out_size, long in_
 
 	if ( in_depth == 0 ) *out_size = 0;
 	
-	length = XISO_FILENAME_OFFSET + strlen( in_avl->filename );
+	length = XISO_FILENAME_OFFSET + (uint32_t)strlen( in_avl->filename );
 	length += ( XISO_DWORD_SIZE - ( length % XISO_DWORD_SIZE ) ) % XISO_DWORD_SIZE;
 	
 	if ( n_sectors( *out_size + length ) > n_sectors( *out_size ) ) {
