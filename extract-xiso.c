@@ -1872,13 +1872,14 @@ int write_dir_start_and_file_positions( dir_node_avl *in_avl, wdsafp_context *io
 
 
 int calculate_total_files_and_bytes( dir_node_avl *in_avl, void *in_context, int in_depth ) {
-	if ( in_avl->subdirectory && in_avl->subdirectory != EMPTY_SUBDIRECTORY ) {
-		avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) calculate_total_files_and_bytes, nil, k_prefix, 0 );
+	if (in_avl->subdirectory) {
+		if (in_avl->subdirectory != EMPTY_SUBDIRECTORY) {
+			avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)calculate_total_files_and_bytes, nil, k_prefix, 0);
+		}
 	} else {
 		++s_total_files;
 		s_total_bytes += in_avl->file_size;
 	}
-	
 	return 0;
 }
 
