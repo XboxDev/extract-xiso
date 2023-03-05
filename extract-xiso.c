@@ -425,23 +425,23 @@
 ", banner, argv[ 0 ], argv[ 0 ] );
 
 #define exiso_log(...)					if ( ! s_quiet ) { printf(__VA_ARGS__); }
-#define exiso_warn(...)					if ( ! s_quiet ) { printf(__VA_ARGS__); s_warned = true; }
+#define exiso_warn(...)					if ( ! s_quiet ) { printf("\nWARNING: " __VA_ARGS__); s_warned = true; }
 #define flush()							if ( ! s_quiet ) { fflush( stdout ); }
 
-#define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error\n" ); err = 1; }
-#define read_err()						{ log_err( __FILE__, __LINE__, "read error: %s\n", strerror( errno ) ); err = 1; }
-#define seek_err()						{ log_err( __FILE__, __LINE__, "seek error: %s\n", strerror( errno ) ); err = 1; }
-#define write_err()						{ log_err( __FILE__, __LINE__, "write error: %s\n", strerror( errno ) ); err = 1; }
-#define rread_err()						{ log_err( __FILE__, __LINE__, "unable to read remote file\n" ); err = 1; }
-#define rwrite_err()					{ log_err( __FILE__, __LINE__, "unable to write to remote file\n" ); err = 1; }
-#define unknown_err()					{ log_err( __FILE__, __LINE__, "an unrecoverable error has occurred\n" ); err = 1; }
-#define open_err( in_file )				{ log_err( __FILE__, __LINE__, "open error: %s %s\n", ( in_file ), strerror( errno ) ); err = 1; }
-#define chdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to change to directory %s: %s\n", ( in_dir ), strerror( errno ) ); err = 1; }
-#define mkdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to create directory %s: %s\n", ( in_dir ), strerror( errno ) ); err = 1; }
-#define ropen_err( in_file )			{ log_err( __FILE__, __LINE__, "unable to open remote file %s\n", ( in_file ) ); err = 1; }
-#define rchdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to change to remote directory %s\n", ( in_dir ) ); err = 1; }
-#define rmkdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to create remote directory %s\n", ( in_dir ) ); err = 1; }
-#define misc_err( in_format, a, b, c )	{ log_err( __FILE__, __LINE__, ( in_format ), ( a ), ( b ), ( c ) ); err = 1; }
+#define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error" ); err = 1; }
+#define read_err()						{ log_err( __FILE__, __LINE__, "read error: %s", strerror( errno ) ); err = 1; }
+#define seek_err()						{ log_err( __FILE__, __LINE__, "seek error: %s", strerror( errno ) ); err = 1; }
+#define write_err()						{ log_err( __FILE__, __LINE__, "write error: %s", strerror( errno ) ); err = 1; }
+#define rread_err()						{ log_err( __FILE__, __LINE__, "unable to read remote file" ); err = 1; }
+#define rwrite_err()					{ log_err( __FILE__, __LINE__, "unable to write to remote file" ); err = 1; }
+#define unknown_err()					{ log_err( __FILE__, __LINE__, "an unrecoverable error has occurred" ); err = 1; }
+#define open_err( in_file )				{ log_err( __FILE__, __LINE__, "open error: %s %s", ( in_file ), strerror( errno ) ); err = 1; }
+#define chdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to change to directory %s: %s", ( in_dir ), strerror( errno ) ); err = 1; }
+#define mkdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to create directory %s: %s", ( in_dir ), strerror( errno ) ); err = 1; }
+#define ropen_err( in_file )			{ log_err( __FILE__, __LINE__, "unable to open remote file %s", ( in_file ) ); err = 1; }
+#define rchdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to change to remote directory %s", ( in_dir ) ); err = 1; }
+#define rmkdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to create remote directory %s", ( in_dir ) ); err = 1; }
+#define misc_err( ... )					{ log_err( __FILE__, __LINE__, __VA_ARGS__ ); err = 1; }
 
 
 #ifndef min
@@ -779,7 +779,6 @@ int main( int argc, char **argv ) {
 		}
 	} else for ( i = optind; ! err && i < argc; ++i ) {
 		++isos;
-		exiso_log( "\n" );
 		s_total_bytes = s_total_files = 0;
 		
 		
@@ -799,19 +798,19 @@ int main( int argc, char **argv ) {
 
 				if ( rewrite ) {
 					if ( optimized ) {
-						exiso_log( "%s is already optimized, skipping...\n", argv[ i ] );
+						exiso_log( "\n%s is already optimized, skipping...\n", argv[ i ] );
 						continue;
 					}
 
 					if ( ! err ) {
 						if (asprintf(&buf, "%s.old", argv[i]) == -1) mem_err();
-						if ( ! err && stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s\n", buf, argv[ i ], 0 );
-						if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s\n", argv[ i ], buf, 0 );
+						if ( ! err && stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s", buf, argv[ i ] );
+						if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s", argv[ i ], buf );
 						
 						if ( err ) { err = 0; free( buf ); continue; }
 					}
 					if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path );
-					if ( ! err && delete && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s\n", buf );
+					if ( ! err && delete && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s", buf );
 					
 					if ( buf ) free( buf );
 				} else {
@@ -821,7 +820,7 @@ int main( int argc, char **argv ) {
 			}
 		}
 		
-		if ( ! err ) exiso_log( "\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], (long long int) s_total_bytes );
+		if ( ! err ) exiso_log( "\n\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], (long long int) s_total_bytes );
 		
 		if ( new_iso_path ) {
 			if ( ! err ) exiso_log( "\n%s successfully rewritten%s%s\n", argv[ i ], path ? " as " : ".", path ? new_iso_path : "" );
@@ -834,7 +833,7 @@ int main( int argc, char **argv ) {
 	}
 	
 	if ( ! err && isos > 1 ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
-	if ( s_warned ) exiso_log( "\nWARNING:  Warning(s) were issued during execution--review stderr!\n" );
+	if ( s_warned ) exiso_warn( "Warning(s) were issued during execution--review stderr!\n" );
 	
 	boyer_moore_done();
 	
@@ -845,26 +844,33 @@ int main( int argc, char **argv ) {
 }
 
 
-int log_err( const char *in_file, int in_line, const char *in_format, ... ) {
+int log_err(const char* in_file, int in_line, const char* in_format, ...) {
 	va_list			ap;
-	char		   *format;
+	char			*format;
 	int				ret;
 
 #if DEBUG
-	asprintf( &format, "%s:%u %s", in_file, in_line, in_format );
+	asprintf(&format, "%s:%u %s", in_file, in_line, in_format);
 #else
-	format = (char *) in_format;
+	format = (char*)in_format;
 #endif
-	
-	if ( s_real_quiet ) ret = 0;
+
+	if (s_real_quiet) {
+		ret = 0;
+	}
+	else if(format){
+		va_start(ap, in_format);
+		fprintf(stderr, "\n");
+		ret = vfprintf(stderr, format, ap);
+		fprintf(stderr, "\n");
+		va_end(ap);
+	}
 	else {
-		va_start( ap, in_format );
-		ret = vfprintf( stderr, format, ap );
-		va_end( ap );
+		ret = 1;
 	}
 
 #if DEBUG
-	free( format );
+	if(format) free(format);
 #endif
 
 	return ret;
@@ -894,7 +900,7 @@ int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_di
 			{
 				if (lseek(in_xiso, (xoff_t)XISO_HEADER_OFFSET + XGD1_LSEEK_OFFSET, SEEK_SET) == -1) seek_err();
 				if (!err && read(in_xiso, buffer, XISO_HEADER_DATA_LENGTH) != XISO_HEADER_DATA_LENGTH) read_err();
-				if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH)) misc_err("%s does not appear to be a valid xbox iso image\n", in_iso_name, 0, 0)
+				if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH)) misc_err("%s does not appear to be a valid xbox iso image", in_iso_name)
 				else s_xbox_disc_lseek = XGD1_LSEEK_OFFSET;
 			}
 			else s_xbox_disc_lseek = XGD3_LSEEK_OFFSET;
@@ -913,12 +919,12 @@ int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_di
 	// seek to header tail and verify media tag
 	if ( ! err && lseek( in_xiso, (xoff_t) XISO_FILETIME_SIZE + XISO_UNUSED_SIZE, SEEK_CUR ) == -1 ) seek_err();
 	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s appears to be corrupt\n", in_iso_name, 0, 0 );
+	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s appears to be corrupt", in_iso_name );
 
 	// seek to root directory sector
 	if ( ! err ) {
 		if ( ! *out_root_dir_sector && ! *out_root_dir_size ) {
-			exiso_log( "xbox image %s contains no files.\n", in_iso_name );
+			exiso_log( "\nxbox image %s contains no files.\n", in_iso_name );
 			err = err_iso_no_files;
 		} else {
 			if ( lseek( in_xiso, (xoff_t) *out_root_dir_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
@@ -974,7 +980,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 #endif
 	}
 	if ( ! err ) {
-		exiso_log( "%s %s%s:\n\n", in_root ? "rewriting" : "\ncreating", iso_name, in_name ? "" : ".iso" );
+		exiso_log( "\n%s %s%s:\n", in_root ? "rewriting" : "creating", iso_name, in_name ? "" : ".iso" );
 
 		root.start_sector = XISO_ROOT_DIRECTORY_SECTOR;		
 
@@ -986,7 +992,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 		} else {
 			int		i, n = 0;
 
-			exiso_log( "generating avl tree from %sfilesystem: ", "" ); flush();
+			exiso_log("\ngenerating avl tree from filesystem: "); flush();
 			
 			err = generate_avl_tree_local( &root.subdirectory, &n );
 
@@ -994,7 +1000,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 			for ( i = 0; i < n; ++i ) exiso_log( " " );
 			for ( i = 0; i < n; ++i ) exiso_log( "\b" );
 
-			exiso_log( "%s\n\n", err ? "failed!" : "[OK]" );
+			exiso_log( "%s\n", err ? "failed!" : "[OK]" );
 		}
 	}
 	if ( ! err && in_progress_callback ) (*in_progress_callback)( 0, s_total_bytes );
@@ -1125,7 +1131,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		}
 	}
 
-	if ( ! err && ! len ) misc_err( "invalid xiso image name: %s\n", in_xiso, 0, 0 );
+	if ( ! err && ! len ) misc_err( "invalid xiso image name: %s", in_xiso );
 
 	if ( ! err && in_mode == k_extract && in_path ) {
 		if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
@@ -1138,7 +1144,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	iso_name = short_name ? short_name : name;
 
 	if ( ! err && in_mode != k_rewrite ) {
-		exiso_log( "%s %s:\n\n", in_mode == k_extract ? "extracting" : "listing", name );
+		exiso_log( "\n%s %s:\n", in_mode == k_extract ? "extracting" : "listing", name );
 
 		if ( in_mode == k_extract ) {
 			if ( ! in_path ) {
@@ -1172,7 +1178,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	}
 	
 	if ( err == err_iso_rewritten ) err = 0;
-	if ( err ) misc_err( "failed to %s xbox iso image %s\n", in_mode == k_rewrite ? "rewrite" : in_mode == k_extract ? "extract" : "list", name, 0 );
+	if ( err ) misc_err( "failed to %s xbox iso image %s", in_mode == k_rewrite ? "rewrite" : in_mode == k_extract ? "extract" : "list", name );
 
 	if ( xiso != -1 ) close( xiso );
 	
@@ -1202,7 +1208,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, char*
 			if (in_mode == k_generate_avl) err = (avl_insert(in_root, EMPTY_SUBDIRECTORY) == k_avl_error);
 		}
 		else {
-			exiso_warn("WARNING: Invalid node found and skipped!\n");
+			exiso_warn("Invalid node found and skipped!");
 		}
 		return err;
 	}
@@ -1244,7 +1250,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, char*
 		if (!err) {
 			avl->file_size = node->file_size;
 			avl->old_start_sector = node->start_sector;
-			if (avl_insert(in_root, avl) == k_avl_error) misc_err("this iso appears to be corrupt\n", 0, 0, 0);
+			if (avl_insert(in_root, avl) == k_avl_error) misc_err("this iso appears to be corrupt");
 		}
 	}
 
@@ -1286,8 +1292,7 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 					if (!err && (err = chdir(node->filename))) chdir_err(node->filename);
 				}
 				if (!err && in_mode != k_generate_avl) {
-					exiso_log("%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating " : "", in_path, node->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
-					exiso_log("\n");
+					exiso_log("\n%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating " : "", in_path, node->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
 				}
 			}
 		}
@@ -1313,8 +1318,7 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 					err = extract_file(in_xiso, node, in_mode, in_path);
 				}
 				else {
-					exiso_log("%s%s (%u bytes)", in_path, node->filename, node->file_size); flush();
-					exiso_log("\n");
+					exiso_log("\n%s%s (%u bytes)", in_path, node->filename, node->file_size); flush();
 				}
 
 				++s_total_files;
@@ -1606,8 +1610,9 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 
 		if ( ! err ) {
+			exiso_log("\n");
 			if (in_file->file_size == 0) {
-				exiso_log("%s%s%s (0 bytes) [100%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, "");
+				exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename);
 			}
 			else {
 				i = 0;
@@ -1625,21 +1630,19 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 					}
 					totalsize += read_size;
 					totalpercent = (totalsize * 100.0f) / in_file->file_size;
-					exiso_log("%s%s%s (%u bytes) [%.1f%%]%s\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size, totalpercent, "");
+					exiso_log("%s%s%s (%u bytes) [%.1f%%]\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size, totalpercent);
 
 					i += read_size;
 					size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
 				} while (i < in_file->file_size && read_size > 0);
 				if (!err && i < in_file->file_size) {
-					exiso_warn("\nWARNING: File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
+					exiso_warn("File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
 					in_file->file_size = i;
 				}
 			}
 			if (in_mode == k_extract) close(out);
 		}
 	}
-
-	if ( ! err ) exiso_log( "\n" );
 
 	return err;
 }
@@ -1668,7 +1671,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		else { if ( asprintf( &context.path, "%c", PATH_CHAR ) == -1 ) mem_err(); }
 
 		if ( ! err ) {
-			exiso_log( "adding %s (0 bytes) [OK]\n", context.path );
+			exiso_log( "\nadding %s (0 bytes) [OK]", context.path );
 	
 			if ( in_avl->subdirectory != EMPTY_SUBDIRECTORY ) {
 				context.xiso = in_context->xiso;
@@ -1727,7 +1730,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 		}
 
 		if ( ! err ) {
-			exiso_log( "adding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
+			exiso_log( "\nadding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
 
 			i = 0;
 			bytes = in_avl->file_size;
@@ -1777,10 +1780,10 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				memset(buf, XISO_PAD_BYTE, bytes);
 				if (write(in_context->xiso, buf, bytes) != (int)bytes) write_err();
 			}
-			exiso_log(err ? "failed\n" : "[OK]\n");
+			exiso_log(err ? "failed" : "[OK]");
 
 			if (!err && i != in_avl->file_size) {
-				exiso_warn("WARNING: File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!\n", in_avl->filename, i, in_avl->file_size);
+				exiso_warn("File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!", in_avl->filename, i, in_avl->file_size);
 			}
 
 			if (!err) {
@@ -1951,7 +1954,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 			} else if ( S_ISREG( sb.st_mode ) ) {
 				empty_dir = false;
 				if ( sb.st_size > ULONG_MAX ) {
-					log_err( __FILE__, __LINE__, "file %s is too large for xiso, skipping...\n", avl->filename );
+					log_err( __FILE__, __LINE__, "file %s is too large for xiso, skipping...", avl->filename );
 					free( avl->filename );
 					free( avl );
 					continue;
@@ -1965,7 +1968,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 			}
 		}
 		if ( ! err ) {
-			if ( avl_insert( out_root, avl ) == k_avl_error ) misc_err( "error inserting file %s into tree (duplicate filename?)\n", avl->filename, 0, 0 );
+			if ( avl_insert( out_root, avl ) == k_avl_error ) misc_err( "error inserting file %s into tree (duplicate filename?)", avl->filename );
 		} else {
 			if ( avl ) {
 				if ( avl->filename ) free( avl->filename );
