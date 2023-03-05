@@ -1184,7 +1184,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	
 	if ( short_name ) free( short_name );
 	if ( cwd ) {
-		chdir( cwd );
+		if (chdir(cwd) == -1) chdir_err(cwd);
 		free( cwd );
 	}
 	
@@ -1697,13 +1697,13 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				if ( ! err && in_context->from == -1 ) {
 					if ( chdir( ".." ) == -1 ) chdir_err( ".." );
 				}
-				
-				if ( context.path ) free( context.path );
 			} else {
 				memset(sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE);
 				if ((pos = lseek(in_context->xiso, in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET)) == -1) seek_err();
 				if (!err && write(in_context->xiso, sector, XISO_SECTOR_SIZE) != XISO_SECTOR_SIZE) write_err();
 			}
+
+			if (context.path) free(context.path);
 		}
 	}
 
