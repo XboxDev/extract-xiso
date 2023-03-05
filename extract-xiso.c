@@ -248,10 +248,11 @@
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
+#include <stddef.h>
+#include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
-#include <stdint.h>
 
 #if defined( __FREEBSD__ ) || defined( __OPENBSD__ )
 	#include <machine/limits.h>
@@ -751,21 +752,20 @@ int main( int argc, char **argv ) {
 
 	if ( ! err && create ) {
 		for ( p = create; ! err && p != nil; ) {
-			char			*tmp = nil;
+			char*		tmp = nil;
+			ptrdiff_t	diff = 0;
 
-			if ( p->name ) {
-				for ( i = (int) strlen( p->name ); i >= 0 && p->name[ i ] != PATH_CHAR; --i ) ; ++i;
-
-				if ( i ) {
-					if ( ( tmp = (char *) malloc( i + 1 ) ) == nil ) mem_err();
-					if ( ! err ) {
-						strncpy( tmp, p->name, i );
-						tmp[ i ] = 0;
-					}
+			if ( p->name && (tmp = strrchr(p->name, PATH_CHAR)) ) {
+				diff = tmp - p->name;
+				if ( ( tmp = (char *) malloc( diff + 1 ) ) == nil ) mem_err();
+				if ( ! err ) {
+					strncpy( tmp, p->name, diff );
+					tmp[ diff ] = 0;
 				}
+				diff += 1;
 			}
 			
-			if ( ! err ) err = create_xiso( p->path, tmp, nil, -1, nil, p->name ? p->name + i : nil, nil );
+			if ( ! err ) err = create_xiso( p->path, tmp, nil, -1, nil, p->name ? p->name + diff : nil, nil );
 
 			if ( tmp ) free( tmp );
 
@@ -949,8 +949,10 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 		if ( ! in_root ) {
 			if ( chdir( in_root_directory ) == -1 ) chdir_err( in_root_directory );
 			if ( ! err ) {
-				if ( in_root_directory[ i = (int) strlen( in_root_directory ) - 1 ] == '/' || in_root_directory[ i ] == '\\' ) in_root_directory[ i-- ] = 0;
-				for ( iso_dir = &in_root_directory[ i ]; iso_dir >= in_root_directory && *iso_dir != PATH_CHAR; --iso_dir ) ; ++iso_dir;
+				i = (int)strlen(in_root_directory) - 1;
+				if ( in_root_directory[i] == '/' || in_root_directory[i] == '\\' ) in_root_directory[i] = 0;
+				if ((iso_dir = strrchr(in_root_directory, PATH_CHAR))) iso_dir++;
+				else iso_dir = in_root_directory;
 
 				iso_name = in_name ? in_name : iso_dir;
 			}
@@ -961,7 +963,8 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ! err ) {
 		if ( ! *iso_dir ) iso_dir = PATH_CHAR_STR;
 		if ( ! in_output_directory ) in_output_directory = cwd;
-		if ( in_output_directory[ i = (int) strlen( in_output_directory ) - 1 ] == PATH_CHAR ) in_output_directory[ i-- ] = 0;
+		i = (int)strlen(in_output_directory) - 1;
+		if ( in_output_directory[i] == PATH_CHAR ) in_output_directory[i] = 0;
 		if ( ! iso_name || ! *iso_name ) iso_name = "root";
 		else if ( iso_name[ 1 ] == ':' ) { iso_name[ 1 ] = iso_name[ 0 ]; ++iso_name; }
 #if defined( _WIN32 )
@@ -1109,7 +1112,8 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 			repair = true;
 		}
 		
-		for ( name = &in_xiso[ len ]; name >= in_xiso && *name != PATH_CHAR; --name ) ; ++name;
+		if ((name = strrchr(in_xiso, PATH_CHAR))) name++;
+		else name = in_xiso;
 		
 		len = (int) strlen( name );
 		
