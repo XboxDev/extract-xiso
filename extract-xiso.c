@@ -500,6 +500,8 @@
 #define XISO_MEDIA_ENABLE_LENGTH		8
 #define XISO_MEDIA_ENABLE_BYTE_POS		7
 
+#define n_dword(offset)					( (offset) / XISO_DWORD_SIZE + ( (offset) % XISO_DWORD_SIZE ? 1 : 0 ) )
+
 #define EMPTY_SUBDIRECTORY				( (dir_node_avl *) 1 )
 
 #define READWRITE_BUFFER_SIZE			0x00200000
@@ -517,6 +519,7 @@ typedef enum bm_constants { k_default_alphabet_size = 256 } bm_constants;
 
 typedef enum modes { k_generate_avl, k_extract, k_list, k_rewrite } modes;
 typedef enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 } errors;
+typedef enum strategies { tree_strategy, discover_strategy } strategies;
 
 typedef void (*progress_callback)( xoff_t in_current_value, xoff_t in_final_value );
 typedef int (*traversal_callback)( void *in_node, void *in_context, long in_depth );
@@ -592,8 +595,8 @@ int free_dir_node_avl( void *in_dir_node_avl, void *, long );
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path );
 int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name );
-int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, char* in_path, modes in_mode, dir_node_avl** in_root);
-int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_node_avl** in_root);
+int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint16_t end_offset, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
+int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
 int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback );
 
 FILE_TIME *alloc_filetime_now( void );
@@ -1107,7 +1110,9 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path ) {
 	dir_node_avl		   *root = nil;
 	bool					repair = false;
+	xoff_t					root_dir_start;
 	int32_t					root_dir_sect, root_dir_size;
+	uint16_t				root_end_offset;
 	int						xiso, err = 0, len, path_len = 0, add_slash = 0;
 	char				   *buf, *cwd = nil, *name = nil, *short_name = nil, *iso_name, *folder = nil;
 
@@ -1166,14 +1171,18 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		if (!err) {
 			if (asprintf(&buf, "%s%s%s%c", in_path ? in_path : "", add_slash && (!in_path) ? PATH_CHAR_STR : "", in_mode != k_list && (!in_path) ? iso_name : "", PATH_CHAR) == -1) mem_err()
 
-			if (!err && lseek(xiso, (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
+			root_dir_start = (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
+			root_end_offset = n_sectors(root_dir_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
 
+			if (!err && lseek(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
+			
 			if ( in_mode == k_rewrite ) {
-				if (!err) err = traverse_xiso(xiso, (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, 0, buf, k_generate_avl, &root);
+				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, tree_strategy);
+				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, discover_strategy);
 				if (!err) err = create_xiso( iso_name, in_path, root, xiso, out_iso_path, nil, nil );
 			}
 			else {
-				if (!err) err = traverse_xiso(xiso, (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek, 0, buf, in_mode, nil);
+				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, in_mode, nil, discover_strategy);
 			}
 			
 			if(buf) free(buf);
@@ -1197,97 +1206,122 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 }
 
 
-int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, char* in_path, modes in_mode, dir_node_avl** in_root) {
-	dir_node_avl*	avl = nil;
-	dir_node*		node = nil;
-	uint16_t		l_offset, r_offset;
+int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint16_t end_offset, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy) {
+	dir_node_avl	*avl = nil;
+	dir_node		*node = nil;
+	uint16_t		l_offset = 0, r_offset = 0;
 	int				err = 0;
 
-	if (lseek(in_xiso, in_dir_start + (xoff_t)entry_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+	if (entry_offset >= end_offset) misc_err("attempt to read node entry beyond directory end");
 
-	if (!err && read(in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
-	if (!err && l_offset == XISO_PAD_SHORT) {
-		if (entry_offset == 0) {	// Empty directory
-			if (in_mode == k_generate_avl) err = (avl_insert(in_root, EMPTY_SUBDIRECTORY) == k_avl_error);
+	do {
+		if (!err && lseek(in_xiso, in_dir_start + (xoff_t)entry_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+
+		if (!err && read(in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
+		if (!err && l_offset == XISO_PAD_SHORT) {
+			if (entry_offset == 0) {	// Empty directories have padding starting at the beginning
+				if (in_mode == k_generate_avl) err = (avl_insert(in_root, EMPTY_SUBDIRECTORY) == k_avl_error);
+				return err;				// Done
+			}
+			else if (strategy != discover_strategy) {			// When discovering, the padding means end of sector
+				exiso_warn("Invalid node found and skipped!");	// When not discovering, the padding means a bad entry, skip it without failing
+				return err;										// We're done if not discovering
+			}
+			// We're discovering, so set the offset to the start of the next sector
+			if (!err) entry_offset = n_sectors(entry_offset * XISO_DWORD_SIZE) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
+			continue;
 		}
-		else {
-			exiso_warn("Invalid node found and skipped!");
-		}
-		return err;
-	}
 
-	// Read node
-	if (!err) if ((node = calloc(1, sizeof(dir_node))) == nil) mem_err();
-	if (!err && read(in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
-	if (!err && read(in_xiso, &node->start_sector, XISO_SECTOR_OFFSET_SIZE) != XISO_SECTOR_OFFSET_SIZE) read_err();
-	if (!err && read(in_xiso, &node->file_size, XISO_FILESIZE_SIZE) != XISO_FILESIZE_SIZE) read_err();
-	if (!err && read(in_xiso, &node->attributes, XISO_ATTRIBUTES_SIZE) != XISO_ATTRIBUTES_SIZE) read_err();
-	if (!err && read(in_xiso, &node->filename_length, XISO_FILENAME_LENGTH_SIZE) != XISO_FILENAME_LENGTH_SIZE) read_err();
+		// Read node
+		if (!err) if ((node = calloc(1, sizeof(dir_node))) == nil) mem_err();
+		if (!err && read(in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
+		if (!err && read(in_xiso, &node->start_sector, XISO_SECTOR_OFFSET_SIZE) != XISO_SECTOR_OFFSET_SIZE) read_err();
+		if (!err && read(in_xiso, &node->file_size, XISO_FILESIZE_SIZE) != XISO_FILESIZE_SIZE) read_err();
+		if (!err && read(in_xiso, &node->attributes, XISO_ATTRIBUTES_SIZE) != XISO_ATTRIBUTES_SIZE) read_err();
+		if (!err && read(in_xiso, &node->filename_length, XISO_FILENAME_LENGTH_SIZE) != XISO_FILENAME_LENGTH_SIZE) read_err();
 
-	if (!err) {
-		little16(l_offset);
-		little16(r_offset);
-		little32(node->file_size);
-		little32(node->start_sector);
+		if (!err && (entry_offset * XISO_DWORD_SIZE + XISO_FILENAME_OFFSET + node->filename_length) > (end_offset * XISO_DWORD_SIZE)) misc_err("node entry spans beyond directory end");
 
-		if ((node->filename = (char*)malloc(node->filename_length + 1)) == nil) mem_err();
-	}
-
-	if (!err) {
-		if (read(in_xiso, node->filename, node->filename_length) != node->filename_length) read_err();
 		if (!err) {
-			node->filename[node->filename_length] = 0;
+			little16(l_offset);
+			little16(r_offset);
+			little32(node->file_size);
+			little32(node->start_sector);
 
-			// security patch (Chris Bainbridge), modified by in to support "...", etc. 02.14.06 (in)
-			if (!strcmp(node->filename, ".") || !strcmp(node->filename, "..") || strchr(node->filename, '/') || strchr(node->filename, '\\')) {
-				log_err(__FILE__, __LINE__, "filename '%s' contains invalid character(s), aborting.", node->filename);
-				exit(1);
+			if ((node->filename = (char*)malloc(node->filename_length + 1)) == nil) mem_err();
+		}
+
+		if (!err) {
+			if (read(in_xiso, node->filename, node->filename_length) != node->filename_length) read_err();
+			if (!err) {
+				node->filename[node->filename_length] = 0;
+
+				// security patch (Chris Bainbridge), modified by in to support "...", etc. 02.14.06 (in)
+				if (!strcmp(node->filename, ".") || !strcmp(node->filename, "..") || strchr(node->filename, '/') || strchr(node->filename, '\\')) {
+					log_err(__FILE__, __LINE__, "filename '%s' contains invalid character(s), aborting.", node->filename);
+					exit(1);
+				}
 			}
 		}
-	}
 
-	// Insert node in tree
-	if (!err && in_mode == k_generate_avl) {
-		if ((avl = (dir_node_avl*)calloc(1, sizeof(dir_node_avl))) == nil) mem_err();
-		if (!err) if ((avl->filename = strdup(node->filename)) == nil) mem_err();
+		// Process the node according to the mode
 		if (!err) {
-			avl->file_size = node->file_size;
-			avl->old_start_sector = node->start_sector;
-			if (avl_insert(in_root, avl) == k_avl_error) misc_err("this iso appears to be corrupt");
+			if (in_mode == k_generate_avl) {
+				if ((avl = (dir_node_avl*)calloc(1, sizeof(dir_node_avl))) == nil) mem_err();
+				if (!err) if ((avl->filename = strdup(node->filename)) == nil) mem_err();
+				if (!err) {
+					avl->file_size = node->file_size;
+					avl->old_start_sector = node->start_sector;
+					if (avl_insert(in_root, avl) == k_avl_error) {	// Insert node in tree
+						// If we're discovering files outside trees, we don't care about avl_insert errors,
+						// since they represent nodes already discovered before, and we don't want to process them again
+						if (strategy != discover_strategy) misc_err("this iso appears to be corrupt");
+					}
+					else err = process_node(in_xiso, node, in_path, in_mode, &avl->subdirectory, strategy);
+				}
+			}
+			else {
+				err = process_node(in_xiso, node, in_path, in_mode, nil, strategy);
+			}
 		}
-	}
 
-	// Process the node, according to mode
-	if (!err) err = process_node(in_xiso, node, in_path, in_mode, (in_mode == k_generate_avl) ? &avl->subdirectory : nil);
+		// Save next offset for discovery
+		if (!err) entry_offset = n_dword(entry_offset * XISO_DWORD_SIZE + XISO_FILENAME_OFFSET + node->filename_length);
 
-	// Free memory before recurring
-	if (node) {
-		if (node->filename) free(node->filename);
-		free(node);
-	}
+		// Free memory before recurring or iterating
+		if (node) {
+			if (node->filename) free(node->filename);
+			free(node);
+		}
 
-	// Repeat on left node
-	if (!err && l_offset) {
-		if (!err) if (lseek(in_xiso, in_dir_start + (xoff_t)l_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
-		if (!err) err = traverse_xiso(in_xiso, in_dir_start, l_offset, in_path, in_mode, &avl);
-	}
+	} while (!err && entry_offset < end_offset && strategy == discover_strategy);	// Iterate only if using discover_strategy
 
-	// Repeat on right node
-	if (!err && r_offset) {
-		if (!err) if (lseek(in_xiso, in_dir_start + (xoff_t)r_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
-		if (!err) err = traverse_xiso(in_xiso, in_dir_start, r_offset, in_path, in_mode, &avl);
+	if (strategy != discover_strategy) {
+		// Recurse on left node
+		if (!err && l_offset) {
+			if (lseek(in_xiso, in_dir_start + (xoff_t)l_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+			if (!err) err = traverse_xiso(in_xiso, in_dir_start, l_offset, end_offset, in_path, in_mode, &avl, strategy);
+		}
+
+		// Recurse on right node
+		if (!err && r_offset) {
+			if (lseek(in_xiso, in_dir_start + (xoff_t)r_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+			if (!err) err = traverse_xiso(in_xiso, in_dir_start, r_offset, end_offset, in_path, in_mode, &avl, strategy);
+		}
 	}
 
 	return err;
 }
 
-int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_node_avl** in_root) {
-	char*	path = nil;
-	int		err = 0;
+int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy) {
+	char		*path = nil;
+	int			err = 0;
+	xoff_t		dir_start = (xoff_t)node->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
+	uint16_t	end_offset;
 
 	if (node->attributes & XISO_ATTRIBUTE_DIR) {	// Process directory
 
-		if (!err) if (lseek(in_xiso, (xoff_t)node->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
+		if (!err) if (lseek(in_xiso, dir_start, SEEK_SET) == -1) seek_err();
 
 		if (!err) {
 			if (!s_remove_systemupdate || !strstr(node->filename, s_systemupdate))
@@ -1304,16 +1338,19 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 
 		if (!err) {
 			// Recurse on subdirectory
-			if (in_path) if (asprintf(&path, "%s%s%c", in_path, node->filename, PATH_CHAR) == -1) mem_err();
-			if (!err && node->file_size > 0) err = traverse_xiso(in_xiso, (xoff_t)node->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, 0, path, in_mode, in_root);
+			if (!err && node->file_size > 0) {
+				if (in_path) if (asprintf(&path, "%s%s%c", in_path, node->filename, PATH_CHAR) == -1) mem_err();
+				end_offset = n_sectors(node->file_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
+				err = traverse_xiso(in_xiso, dir_start, 0, end_offset, path, in_mode, in_root, strategy);
+				if (path) free(path);
+			}
 
 			if (!s_remove_systemupdate || !strstr(node->filename, s_systemupdate))
 			{
 				if (!err && in_mode == k_extract && (err = chdir(".."))) chdir_err("..");
 			}
 		}
-
-		if (path) free(path);
+		
 	}
 	else if (in_mode != k_generate_avl) {	// Write file
 		if (!err) {
@@ -1600,19 +1637,17 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 	int						err = 0;
 	bool					warn = false;
+	xoff_t					file_start = (xoff_t)in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 	uint32_t				i, size, read_size, totalsize = 0;
 	float					totalpercent = 0.0f;
 	int						out;
 
-	if ( s_remove_systemupdate && strstr( path, s_systemupdate ) ){
-		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
-	}
-	else {
+	if (lseek(in_xiso, file_start, SEEK_SET) == -1) seek_err();
+
+	if ( !s_remove_systemupdate || !strstr( path, s_systemupdate ) ) {
 		if ( in_mode == k_extract ) {
-			if ( ( out = open( in_file->filename, WRITEFLAGS, 0644 ) ) == -1 ) open_err( in_file->filename );
+			if (!err && (out = open(in_file->filename, WRITEFLAGS, 0644)) == -1) open_err(in_file->filename);
 		} else err = 1;
-	
-		if ( ! err && lseek( in_xiso, (xoff_t) in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
 
 		if ( ! err ) {
 			exiso_log("\n");
@@ -1807,11 +1842,13 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 
 
 int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int in_depth ) {
-	xoff_t				pos;
-	int					err = 0, pad;
-	uint16_t			l_offset, r_offset;
-	uint32_t			file_size = in_avl->file_size + (in_avl->subdirectory ? (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE  : 0);
-	char				length = (char) strlen( in_avl->filename ), attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC, sector[ XISO_SECTOR_SIZE ];
+	xoff_t		pos;
+	int			err = 0, pad;
+	uint16_t	l_offset, r_offset;
+	uint32_t	file_size = in_avl->file_size + (in_avl->subdirectory ? (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE  : 0);
+	char		length = (char)strlen(in_avl->filename);
+	char		attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC;
+	char		sector[XISO_SECTOR_SIZE];
 		
 	little32( in_avl->file_size );
 	little32( in_avl->start_sector );
