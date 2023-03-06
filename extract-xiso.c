@@ -925,14 +925,7 @@ int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_di
 	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s appears to be corrupt", in_iso_name );
 
 	// seek to root directory sector
-	if ( ! err ) {
-		if ( ! *out_root_dir_sector && ! *out_root_dir_size ) {
-			exiso_log( "\nxbox image %s contains no files.\n", in_iso_name );
-			err = err_iso_no_files;
-		} else {
-			if ( lseek( in_xiso, (xoff_t) *out_root_dir_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
-		}
-	}
+	if (!err && lseek(in_xiso, (xoff_t)*out_root_dir_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
 	
 	return err;
 }
@@ -991,7 +984,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 		if ( in_root ) {
 			root.subdirectory = in_root;
-			avl_traverse_depth_first( in_root, (traversal_callback) calculate_total_files_and_bytes, nil, k_prefix, 0 );
+			avl_traverse_depth_first( &root, (traversal_callback) calculate_total_files_and_bytes, nil, k_prefix, 0 );
 		} else {
 			int		i, n = 0;
 
@@ -1162,7 +1155,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		}
 	}
 
-	if ( ! err && root_dir_sect && root_dir_size ) {						
+	if ( ! err ) {						
 		if ( in_path ) {
 			path_len = (int) strlen( in_path );
 			if ( in_path[ path_len - 1 ] != PATH_CHAR ) ++add_slash;
@@ -1177,12 +1170,15 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 			if (!err && lseek(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
 			
 			if ( in_mode == k_rewrite ) {
-				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, tree_strategy);
-				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, discover_strategy);
-				if (!err) err = create_xiso( iso_name, in_path, root, xiso, out_iso_path, nil, nil );
+				if (!err && root_dir_size == 0) root = EMPTY_SUBDIRECTORY;
+				else {
+					if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, tree_strategy);
+					if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, discover_strategy);
+				}
+				if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, nil, nil);
 			}
 			else {
-				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, in_mode, nil, discover_strategy);
+				if (!err && root_dir_size != 0) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, in_mode, nil, discover_strategy);
 			}
 			
 			if(buf) free(buf);
@@ -1220,7 +1216,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		if (!err && read(in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
 		if (!err && l_offset == XISO_PAD_SHORT) {
 			if (entry_offset == 0) {	// Empty directories have padding starting at the beginning
-				if (in_mode == k_generate_avl) err = (avl_insert(in_root, EMPTY_SUBDIRECTORY) == k_avl_error);
+				if (in_mode == k_generate_avl) *in_root = EMPTY_SUBDIRECTORY;
 				return err;				// Done
 			}
 			else if (strategy != discover_strategy) {			// When discovering, the padding means end of sector
@@ -1338,10 +1334,15 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 
 		if (!err) {
 			// Recurse on subdirectory
-			if (!err && node->file_size > 0) {
-				if (in_path) if (asprintf(&path, "%s%s%c", in_path, node->filename, PATH_CHAR) == -1) mem_err();
-				end_offset = n_sectors(node->file_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
-				err = traverse_xiso(in_xiso, dir_start, 0, end_offset, path, in_mode, in_root, strategy);
+			if (node->file_size == 0) {
+				if (in_mode == k_generate_avl) *in_root = EMPTY_SUBDIRECTORY;
+			}
+			else {
+				if (in_path && asprintf(&path, "%s%s%c", in_path, node->filename, PATH_CHAR) == -1) mem_err();
+				if (!err) {
+					end_offset = n_sectors(node->file_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
+					err = traverse_xiso(in_xiso, dir_start, 0, end_offset, path, in_mode, in_root, strategy);
+				}
 				if (path) free(path);
 			}
 
