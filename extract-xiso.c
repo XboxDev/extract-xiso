@@ -1704,8 +1704,9 @@ int free_dir_node_avl( void *in_dir_node_avl, void *in_context, long in_depth ) 
 int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_depth ) {
 	xoff_t					pos;
 	write_tree_context		context;
+	xoff_t					dir_start = (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE;
 	int						err = 0, pad;
-	char					sector[ XISO_SECTOR_SIZE ];
+	char					sector[XISO_SECTOR_SIZE];
 
 	if ( in_avl->subdirectory ) {
 		if ( in_context->path ) { if ( asprintf( &context.path, "%s%s%c", in_context->path, in_avl->filename, PATH_CHAR ) == -1 ) mem_err(); }
@@ -1727,7 +1728,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_file, &context, k_prefix, 0 );
 				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_tree, &context, k_prefix, 0 );
 
-				if (!err && lseek(in_context->xiso, (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
+				if (!err && lseek(in_context->xiso, dir_start, SEEK_SET) == -1) seek_err();
 				if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, in_context, k_prefix, 0);
 				if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
 				if (!err && (pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE))) {
@@ -1740,7 +1741,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				}
 			} else {
 				memset(sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE);
-				if ((pos = lseek(in_context->xiso, in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET)) == -1) seek_err();
+				if ((pos = lseek(in_context->xiso, dir_start, SEEK_SET)) == -1) seek_err();
 				if (!err && write(in_context->xiso, sector, XISO_SECTOR_SIZE) != XISO_SECTOR_SIZE) write_err();
 			}
 
