@@ -807,7 +807,7 @@ int main( int argc, char **argv ) {
 						if ( ! err && stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s", buf, argv[ i ] );
 						if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s", argv[ i ], buf );
 						
-						if ( err ) { err = 0; free( buf ); continue; }
+						if ( err ) { err = 0; if ( buf ) free( buf ); continue; }
 					}
 					if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path );
 					if ( ! err && delete && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s", buf );
@@ -1017,8 +1017,11 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ! err && ( buf = (char *) malloc( n = max( READWRITE_BUFFER_SIZE, XISO_HEADER_OFFSET ) ) ) == nil ) mem_err();
 	if ( ! err ) {
 		if ( ( xiso = open( xiso_path, WRITEFLAGS, 0644 ) ) == -1 ) open_err( xiso_path );
-		if ( out_iso_path ) *out_iso_path = xiso_path;
-		else free( xiso_path );
+		if (out_iso_path) *out_iso_path = xiso_path;
+		else {
+			free(xiso_path);
+			xiso_path = nil;
+		}
 	}
 	if ( ! err ) {
 		memset( buf, 0, n );
@@ -1085,7 +1088,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	
 	if ( xiso != -1 ) {
 		close( xiso );
-		if ( err ) unlink( xiso_path );
+		if (err && xiso_path) unlink(xiso_path);
 	}
 	
 	if ( root.filename ) free( root.filename );
@@ -1214,7 +1217,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, char*
 	}
 
 	// Read node
-	if (!err) if (!(node = calloc(1, sizeof(dir_node)))) mem_err();
+	if (!err) if ((node = calloc(1, sizeof(dir_node))) == nil) mem_err();
 	if (!err && read(in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
 	if (!err && read(in_xiso, &node->start_sector, XISO_SECTOR_OFFSET_SIZE) != XISO_SECTOR_OFFSET_SIZE) read_err();
 	if (!err && read(in_xiso, &node->file_size, XISO_FILESIZE_SIZE) != XISO_FILESIZE_SIZE) read_err();
@@ -1258,8 +1261,10 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, char*
 	if (!err) err = process_node(in_xiso, node, in_path, in_mode, (in_mode == k_generate_avl) ? &avl->subdirectory : nil);
 
 	// Free memory before recurring
-	if (node->filename) free(node->filename);
-	if (node) free(node);
+	if (node) {
+		if (node->filename) free(node->filename);
+		free(node);
+	}
 
 	// Repeat on left node
 	if (!err && l_offset) {
