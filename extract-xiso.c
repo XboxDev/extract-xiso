@@ -858,9 +858,7 @@ int log_err(const char* in_file, int in_line, const char* in_format, ...) {
 	format = (char*)in_format;
 #endif
 
-	if (s_real_quiet) {
-		ret = 0;
-	}
+	if (s_real_quiet) ret = 0;
 	else if(format){
 		va_start(ap, in_format);
 		fprintf(stderr, "\n");
@@ -868,9 +866,7 @@ int log_err(const char* in_file, int in_line, const char* in_format, ...) {
 		fprintf(stderr, "\n");
 		va_end(ap);
 	}
-	else {
-		ret = 1;
-	}
+	else ret = 1;
 
 #if DEBUG
 	if(format) free(format);
@@ -937,7 +933,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	xoff_t					pos;
 	dir_node_avl			root;
 	FILE_TIME			   *ft = nil;
-	write_tree_context		wt_context;
+	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector;
 	int						i, n, xiso = -1, err = 0;
 	char				   *cwd = nil, *buf = nil, *iso_name, *xiso_path, *iso_dir;
@@ -1244,7 +1240,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 			little32(node->file_size);
 			little32(node->start_sector);
 
-			if ((node->filename = (char*)malloc(node->filename_length + 1)) == nil) mem_err();
+			if ((node->filename = (char*)malloc((size_t)node->filename_length + 1)) == nil) mem_err();
 		}
 
 		if (!err) {
@@ -1357,9 +1353,7 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 		if (!err) {
 			if (!s_remove_systemupdate || !strstr(in_path, s_systemupdate))
 			{
-				if (in_mode == k_extract) {
-					err = extract_file(in_xiso, node, in_mode, in_path);
-				}
+				if (in_mode == k_extract) err = extract_file(in_xiso, node, in_mode, in_path);
 				else {
 					exiso_log("\n%s%s (%u bytes)", in_path, node->filename, node->file_size); flush();
 				}
@@ -1703,7 +1697,7 @@ int free_dir_node_avl( void *in_dir_node_avl, void *in_context, long in_depth ) 
 
 int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_depth ) {
 	xoff_t					pos;
-	write_tree_context		context;
+	write_tree_context		context = { 0 };
 	xoff_t					dir_start = (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE;
 	int						err = 0, pad;
 	char					sector[XISO_SECTOR_SIZE];
@@ -1731,7 +1725,8 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				if (!err && lseek(in_context->xiso, dir_start, SEEK_SET) == -1) seek_err();
 				if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, in_context, k_prefix, 0);
 				if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
-				if (!err && (pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE))) {
+				if (!err) {
+					pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE);
 					memset(sector, XISO_PAD_BYTE, pad);
 					if (write(in_context->xiso, sector, pad) != pad) write_err();
 				}
@@ -1755,14 +1750,14 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 
 int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_depth ) {
 	char		   *buf, *p;
-	uint32_t		bytes, n, size;
+	uint32_t		bytes, n, size = max(XISO_SECTOR_SIZE, READWRITE_BUFFER_SIZE);
 	int				err = 0, fd = -1, i;
 	size_t			len;
 
 	if ( ! in_avl->subdirectory ) {
 		if ( lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 		
-		if ( ! err && ( buf = (char *) malloc( ( size = max( XISO_SECTOR_SIZE, READWRITE_BUFFER_SIZE ) ) + 1 ) ) == nil ) mem_err();
+		if ( ! err && ( buf = (char *) malloc( (size_t)size + 1 ) ) == nil ) mem_err();
 		if ( ! err ) {
 			if ( in_context->from == -1 ) {
 				if ( ( fd = open( in_avl->filename, READFLAGS, 0 ) ) == -1 ) open_err( in_avl->filename );
@@ -1776,56 +1771,56 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 
 			i = 0;
 			bytes = in_avl->file_size;
+			len = strlen(in_avl->filename);
 			do {
-				if ((int)(n = read(fd, buf + i, min(bytes, size - i))) < 0) {
+				n = read(fd, buf + i, min(bytes, size - i));
+				if ((signed)n < 0) {
 					read_err();
 					break;
 				}
-				if (n == 0) {
-					if (i) {
-						if (write(in_context->xiso, buf, i) != i) {
-							write_err();
-							break;
-						}
-					}
+				else if (n == 0) {	// End of file
+					if (i && write(in_context->xiso, buf, i) != i) write_err();	// Write remaining 'i' bytes
 					break;
 				}
 				bytes -= n;
-				if (s_media_enable && (len = strlen(in_avl->filename)) >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0) {
+				if (s_media_enable && len >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0) {
 					for (buf[n += i] = 0, p = buf; (p = boyer_moore_search(p, n - (long)(p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
 					if (bytes) {
 						i = XISO_MEDIA_ENABLE_LENGTH - 1;
-						if (write(in_context->xiso, buf, n - i) != (int)n - i) {
+						if (write(in_context->xiso, buf, n - i) != (signed)n - i) {
 							write_err();
 							break;
 						}
 						memcpy(buf, &buf[n - i], i);
 					}
 					else {
-						if (write(in_context->xiso, buf, n + i) != (int)n + i) {
+						if (write(in_context->xiso, buf, n + i) != (signed)n + i) {
 							write_err();
 							break;
 						}
 					}
 				}
 				else {
-					if (write(in_context->xiso, buf, n + i) != (int)n + i) {
+					if (write(in_context->xiso, buf, n + i) != (signed)n + i) {
 						write_err();
 						break;
 					}
 				}
 			} while (bytes);
-			i = in_avl->file_size;
+			n = in_avl->file_size;
 			in_avl->file_size -= bytes;
 
-			if (!err && (bytes = (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE)) {
-				memset(buf, XISO_PAD_BYTE, bytes);
-				if (write(in_context->xiso, buf, bytes) != (int)bytes) write_err();
+			if (!err) {
+				bytes = (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE;
+				if (bytes) {
+					memset(buf, XISO_PAD_BYTE, bytes);
+					if (write(in_context->xiso, buf, bytes) != (signed)bytes) write_err();
+				}
 			}
 			exiso_log(err ? "failed" : "[OK]");
 
-			if (!err && i != in_avl->file_size) {
-				exiso_warn("File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!", in_avl->filename, i, in_avl->file_size);
+			if (!err && n != in_avl->file_size) {
+				exiso_warn("File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!", in_avl->filename, n, in_avl->file_size);
 			}
 
 			if (!err) {
@@ -1845,12 +1840,12 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 
 int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int in_depth ) {
 	xoff_t		pos;
-	int			err = 0, pad;
 	uint16_t	l_offset, r_offset;
-	uint32_t	file_size = in_avl->file_size + (in_avl->subdirectory ? (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE  : 0);
-	char		length = (char)strlen(in_avl->filename);
-	char		attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC;
+	uint32_t	file_size = in_avl->subdirectory ? n_sectors(in_avl->file_size) * XISO_SECTOR_SIZE : in_avl->file_size;
+	uint8_t		length = (uint8_t)strlen(in_avl->filename);
+	uint8_t		attributes = in_avl->subdirectory ? XISO_ATTRIBUTE_DIR : XISO_ATTRIBUTE_ARC;
 	char		sector[XISO_SECTOR_SIZE];
+	int			err = 0, pad;
 		
 	little32( in_avl->file_size );
 	little32( in_avl->start_sector );
@@ -1864,7 +1859,8 @@ int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int i
 	memset( sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE );
 	
 	if ( ( pos = lseek( in_context->xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
-	if ( ! err && ( pad = (int) ( (xoff_t) in_avl->offset + in_avl->dir_start - pos ) ) && write( in_context->xiso, sector, pad ) != pad ) write_err();
+	if ( ! err ) pad = (int)((xoff_t)in_avl->offset + in_avl->dir_start - pos);
+	if ( ! err && write( in_context->xiso, sector, pad ) != pad ) write_err();
 	if ( ! err && write( in_context->xiso, &l_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
 	if ( ! err && write( in_context->xiso, &r_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
 	if ( ! err && write( in_context->xiso, &in_avl->start_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) write_err();
@@ -1881,7 +1877,7 @@ int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int i
 
 
 int calculate_directory_offsets( dir_node_avl *in_avl, uint32_t *io_current_sector, int in_depth ) {
-	wdsafp_context			context;
+	wdsafp_context			context = { 0 };
 
 	if ( in_avl->subdirectory ) {
 		if (in_avl->subdirectory == EMPTY_SUBDIRECTORY) {
