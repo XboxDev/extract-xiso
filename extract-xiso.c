@@ -1757,8 +1757,9 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int in_depth ) {
 	char		   *buf = nil, *p = nil;
 	uint32_t		bytes = 0, size = max(XISO_SECTOR_SIZE, READWRITE_BUFFER_SIZE);
-	int				err = 0, fd = -1, n, i;
+	int				err = 0, fd = -1, n = 0, i = 0;
 	size_t			len;
+	bool			xbe_file;
 
 	if ( ! in_avl->subdirectory ) {
 		if ( lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
@@ -1775,50 +1776,35 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 		if ( ! err ) {
 			exiso_log( "\nadding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
 
-			i = 0;
 			bytes = in_avl->file_size;
 			len = strlen(in_avl->filename);
+			xbe_file = len >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0;
 			do {
 				n = read(fd, buf + i, min(bytes, size - i));
-				if (n < 0) {
-					read_err();
-					break;
-				}
-				else if (n == 0) {	// End of file
-					if (i && write(in_context->xiso, buf, i) != i) write_err();	// Write remaining 'i' bytes
-					break;
-				}
-				bytes -= n;
-				if (s_media_enable && len >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0) {
-					for (buf[n += i] = 0, p = buf; (p = boyer_moore_search(p, n - (long)(p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
-					if (bytes) {
-						i = XISO_MEDIA_ENABLE_LENGTH - 1;
-						if (write(in_context->xiso, buf, n - i) != n - i) {
-							write_err();
-							break;
-						}
-						memcpy(buf, &buf[n - i], i);
-					}
-					else {
-						if (write(in_context->xiso, buf, n + i) != n + i) {
-							write_err();
-							break;
-						}
-					}
+				if (n < 0) { read_err(); }
+				else if (n == 0) {	// Unexpected end of file
+					if (i > 0 && write(in_context->xiso, buf, i) != i) write_err();	// Write remaining 'i' bytes
 				}
 				else {
-					if (write(in_context->xiso, buf, n + i) != n + i) {
-						write_err();
-						break;
+					bytes -= n;
+					if (s_media_enable && xbe_file) {
+						n += i;
+						for (buf[n] = 0, p = buf; (p = boyer_moore_search(p, n - (long)(p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
+						if (bytes) {
+							i = XISO_MEDIA_ENABLE_LENGTH - 1;
+							n -= i;
+						}
 					}
+					if (write(in_context->xiso, buf, n) != n) write_err();
+					if (!err && s_media_enable && xbe_file && bytes) memcpy(buf, &buf[n], i);
 				}
-			} while (bytes);
+			} while (!err && bytes > 0 && n > 0);
 			size = in_avl->file_size;
 			in_avl->file_size -= bytes;
 
 			if (!err) {
 				i = (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE;
-				if (i) {
+				if (i > 0) {
 					memset(buf, XISO_PAD_BYTE, i);
 					if (write(in_context->xiso, buf, i) != i) write_err();
 				}
@@ -1835,7 +1821,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 				if (in_context->progress) (*in_context->progress)(s_total_bytes, in_context->final_bytes);
 			}
 		}
-				
+		
 		if ( in_context->from == -1 && fd != -1 ) close( fd );
 		if ( buf ) free( buf );
 	}
