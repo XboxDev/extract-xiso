@@ -56,7 +56,7 @@
  * University of Illinois, Urbana-Champaign.
  */
 
-#ifdef WIN32
+#ifdef _WIN32
 
 #include <stdio.h>
 #include <string.h>
@@ -77,8 +77,8 @@ static int
 optiserr(int argc, char * const *argv, int oint, const char *optstr,
          int optchr, int err)
 {
-	argc;
-	optstr;
+	(void)argc;
+	(void)optstr;
 
     if(opterr)
     {

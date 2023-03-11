@@ -234,11 +234,13 @@
 	in
 */
 
-#if defined( __LINUX__ )
-	#define _LARGEFILE64_SOURCE
+#if defined(__linux__)
+	#define _LARGEFILE_SOURCE
+	#define	_FILE_OFFSET_BITS	64
+	#define	_TIME_BITS			64
 #endif
 
-#if defined( __GNUC__ )
+#if defined(__GNUC__)
 	#define _GNU_SOURCE
 	#define unused	__attribute__((__unused__))
 #elif defined(_MSC_VER)
@@ -271,13 +273,14 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 
-#if defined( __FREEBSD__ ) || defined( __OPENBSD__ )
-	#include <machine/limits.h>
+#if defined(__FreeBSD__) || defined(__OpenBSD__)
+	#include <sys/limits.h>
 #endif
 
-#if defined( _WIN32 )
+#if defined(_WIN32)
 	#include <direct.h>
 	#include "win32/dirent.c"
+	#include "win32/getopt.c"
 #else
 	#include <dirent.h>
 	#include <limits.h>
@@ -285,98 +288,135 @@
 #endif
 
 #if defined(_MSC_VER)
+	#include "win32/asprintf.c"
 	#include <BaseTsd.h>
-	typedef SSIZE_T		ssize_t;
-	#define strcasecmp	_stricmp
-	#define strncasecmp	_strnicmp
 #else
 	#include <strings.h>
 #endif
 
+#if defined(__APPLE__) && defined(__MACH__)
+	#define exiso_target				"macOS"
 
-#if defined( __DARWIN__ )
-	#define exiso_target				"macos-x"
+	#include <libkern/OSByteOrder.h>
+	#define bswap_16(x)					OSSwapInt16(x)
+	#define bswap_32(x)					OSSwapInt32(x)
+	#define bswap_64(x)					OSSwapInt64(x)
+#elif defined(__FreeBSD__)
+	#define exiso_target				"FreeBSD"
 
-	#define PATH_CHAR					'/'
-	#define PATH_CHAR_STR				"/"
+	#include <sys/endian.h>
+	#define bswap_16(x)					bswap16(x)
+	#define bswap_32(x)					bswap32(x)
+	#define bswap_64(x)					bswap64(x)
+#elif defined(__OpenBSD__)
+	#define exiso_target				"OpenBSD"
 
-	#define FORCE_ASCII					1
-	#define READFLAGS					O_RDONLY
-	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
-	#define READWRITEFLAGS				O_RDWR
+	#include <sys/types.h>
+	#define bswap_16(x)					swap16(x)
+	#define bswap_32(x)					swap32(x)
+	#define bswap_64(x)					swap64(x)
+#elif defined(__NetBSD__)
+	#define exiso_target				"NetBSD"
 
-	typedef	off_t						xoff_t;
-#elif defined( __FREEBSD__ )
-	#define exiso_target				"freebsd"
+	#include <sys/types.h>
+	#include <machine/bswap.h>
+	#if defined(__BSWAP_RENAME) && !defined(__bswap_16)
+		#define bswap_16(x)				bswap16(x)
+		#define bswap_32(x)				bswap32(x)
+		#define bswap_64(x)				bswap64(x)
+	#endif
+#elif defined(__linux__)
+	#define exiso_target				"Linux"
 
-	#define PATH_CHAR					'/'
-	#define PATH_CHAR_STR				"/"
+	#include <byteswap.h>
+#elif defined(_WIN32) || defined(__CYGWIN__)
+	#define exiso_target				"Windows"
 
-	#define FORCE_ASCII					1
-	#define READFLAGS					O_RDONLY
-	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
-	#define READWRITEFLAGS				O_RDWR
+	#if defined(_MSC_VER)
+		#define S_ISDIR(x)				((x) & _S_IFDIR)
+		#define S_ISREG(x)				((x) & _S_IFREG)
 
-	typedef	off_t						xoff_t;
-#elif defined( __LINUX__ )
-	#define exiso_target				"linux"
+		typedef SSIZE_T					ssize_t;
+		#define strcasecmp				_stricmp
+		#define strncasecmp				_strnicmp
+	#endif
 
-	#define PATH_CHAR					'/'
-	#define PATH_CHAR_STR				"/"
+	#if defined(__CYGWIN__)
+		#include <byteswap.h>
+	#else
+		#include <stdlib.h>
 
-	#define FORCE_ASCII					0
-	#define READFLAGS					O_RDONLY | O_LARGEFILE
-	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_LARGEFILE
-	#define READWRITEFLAGS				O_RDWR | O_LARGEFILE
+		#define lseek					_lseeki64
+		#define mkdir(a, b)				_mkdir(a)
+		#define stat					_stat64
+		#define realpath(a, b)			_fullpath(b, a, _MAX_PATH)
 
-	#define lseek						lseek64
-	#define stat						stat64
-	
-	typedef off64_t 					xoff_t;
-#elif defined( __OPENBSD__ )
-	#define exiso_target				"openbsd"
-#elif defined( _WIN32 )
-	#define exiso_target				"win32"
-
-	#define PATH_CHAR					'\\'
-	#define PATH_CHAR_STR				"\\"
-
-	#define FORCE_ASCII					0
-	#define READFLAGS					O_RDONLY | O_BINARY
-	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_BINARY
-	#define READWRITEFLAGS				O_RDWR   | O_BINARY
-
-	#define S_ISDIR( x )				( ( x ) & _S_IFDIR )
-	#define S_ISREG( x )				( ( x ) & _S_IFREG )
-
-	#include "win32/getopt.c"
-#if defined(_MSC_VER)
-	#include "win32/asprintf.c"
-#endif
-	#define lseek						_lseeki64
-	#define mkdir( a, b )				_mkdir( (a) )
-	#define stat						_stat64
-	#define realpath(a, b)				_fullpath(b, a, _MAX_PATH)
-
-    typedef int64_t                     xoff_t;
+		#define bswap_16(x)				_byteswap_ushort(x)
+		#define bswap_32(x)				_byteswap_ulong(x)
+		#define bswap_64(x)				_byteswap_uint64(x)
+	#endif
 #else
 	#error unknown target, cannot compile!
 #endif
 
+#if defined(_WIN32) || defined(__CYGWIN__)
+	#define PATH_CHAR					'\\'
+	#define PATH_CHAR_STR				"\\"
 
-#define swap16( n )						( ( n ) = ( n ) << 8 | ( n ) >> 8 )
-#define swap32( n )						( ( n ) = ( n ) << 24 | ( ( ( n ) << 8 ) & 0xff0000 ) | ( ( ( n ) >> 8 ) & 0xff00 ) | ( n ) >> 24 )
+	#define READFLAGS					O_RDONLY | O_BINARY
+	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC | O_BINARY
+	#define READWRITEFLAGS				O_RDWR   | O_BINARY
 
-#ifdef USE_BIG_ENDIAN
-	#define big16( n )
-	#define big32( n )
-	#define little16( n )				swap16( n )
-	#define little32( n )				swap32( n )
+	typedef int64_t                     xoff_t;
 #else
-	#define big16( n )					swap16( n )
-	#define big32( n )					swap32( n )
-	#define	little16( n )
-	#define little32( n )
+	#define PATH_CHAR					'/'
+	#define PATH_CHAR_STR				"/"
+
+	#define READFLAGS					O_RDONLY
+	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
+	#define READWRITEFLAGS				O_RDWR
+
+	typedef	off_t						xoff_t;
+#endif
+
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)	/* All BSD systems, but this macro is unused anyways */
+	#define FORCE_ASCII					1
+#else
+	#define FORCE_ASCII					0
+#endif
+
+#if CHAR_BIT != 8
+	#error unsupported char size, cannot compile!
+#endif
+
+#if !defined(BIG_ENDIAN)
+	#define BIG_ENDIAN		1
+	#define LITTLE_ENDIAN	0
+#endif
+#define UNK_ENDIAN			-1
+
+#if defined(CMAKE_ENDIANNESS)
+	#if CMAKE_ENDIANNESS == BIG_ENDIAN
+		#define USE_BIG_ENDIAN
+	#elif CMAKE_ENDIANNESS != LITTLE_ENDIAN
+		#error unknown endianness, cannot compile!
+	#endif
+#endif
+
+#if defined(USE_BIG_ENDIAN)
+	#define big16(n)
+	#define big32(n)
+	#define big64(n)
+	#define little16(n)					( (n) = bswap_16(n) )
+	#define little32(n)					( (n) = bswap_32(n) )
+	#define little64(n)					( (n) = bswap_64(n) )
+#else
+	#define big16(n)					( (n) = bswap_16(n) )
+	#define big32(n)					( (n) = bswap_32(n) )
+	#define big64(n)					( (n) = bswap_64(n) )
+	#define	little16(n)
+	#define little32(n)
+	#define little64(n)
 #endif
 
 
@@ -390,6 +430,7 @@
 	enum { false, true };
 #endif
 
+typedef int64_t							file_time_t;
 
 #ifndef nil
 	#define nil							0
@@ -576,11 +617,6 @@ struct create_list {
 	create_list						   *next;
 };
 
-typedef struct FILE_TIME {
-	uint32_t							l;
-	uint32_t							h;
-} FILE_TIME;
-
 typedef struct wdsafp_context {
 	xoff_t								dir_start;
 	uint32_t							*current_sector;
@@ -618,7 +654,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
 int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback );
 
-FILE_TIME *alloc_filetime_now( void );
+int get_filetime_now( file_time_t *ft );
 int generate_avl_tree_local( dir_node_avl **out_root, int *io_n );
 int generate_avl_tree_remote( dir_node_avl **out_root, int *io_n );
 int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, int in_depth );
@@ -951,7 +987,7 @@ int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_
 int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback ) {
 	xoff_t					pos = 0;
 	dir_node_avl			root = { 0 };
-	FILE_TIME			   *ft = nil;
+	file_time_t				ft = 0;
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
 	int						i = 0, n = 0, xiso = -1, err = 0;
@@ -1052,8 +1088,8 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 			memset( buf, 0, XISO_FILETIME_SIZE );
 		} else {
-			if ( ( ft = alloc_filetime_now() ) == nil ) mem_err();
-			if ( ! err && write( xiso, ft, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
+			if ( ( err = get_filetime_now(&ft) ) ) misc_err("cannot get current time");
+			if ( ! err && write( xiso, &ft, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
 		}
 	}
 	if ( ! err && write( xiso, buf, XISO_UNUSED_SIZE ) != XISO_UNUSED_SIZE ) write_err();
@@ -1099,7 +1135,6 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	
 	if ( root.filename ) free( root.filename );
 	if ( buf ) free( buf );
-	if ( ft ) free( ft );
 
 	if ( cwd ) {
 		if ( chdir( cwd ) == -1 ) chdir_err( cwd );
@@ -2020,28 +2055,18 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 }
 
 
-FILE_TIME *alloc_filetime_now( void ) {
-	FILE_TIME		   *ft = nil;
-	double				tmp = 0.0f;
+int get_filetime_now(file_time_t *ft) {
 	time_t				now = 0;
 	int					err = 0;
 
-	if ( ( ft = (FILE_TIME *) malloc( sizeof(struct FILE_TIME) ) ) == nil ) mem_err();
-	if ( ! err && ( now = time( nil ) ) == -1 ) unknown_err();
+	if (ft == nil) return 1;
+	if ( ( now = time( nil ) ) == -1 ) unknown_err();
 	if ( ! err ) {
-		tmp = ( (double) now + ( 369.0 * 365.25 * 24 * 60 * 60 - ( 3.0 * 24 * 60 * 60 + 6.0 * 60 * 60 ) ) ) * 1.0e7;
-
-		ft->h = (uint32_t) ( tmp * ( 1.0 / ( 4.0 * (double) ( 1 << 30 ) ) ) );
-		ft->l = (uint32_t) ( tmp - ( (double) ft->h ) * 4.0 * (double) ( 1 << 30 ) );
-		
-		little32( ft->h );		// convert to little endian here because this is a PC only struct and we won't read it anyway
-		little32( ft->l );
-	} else if ( ft ) {
-		free( ft );
-		ft = nil;
+		*ft = (now * 10000000LL) + 116444736000000000LL;	// Magic numbers directly from Microsoft
+		little64(*ft);	// convert to little endian here because this is a PC only struct and we won't read it anyway
 	}
 	
-	return ft;
+	return err;
 }
 
 // Found the CD-ROM layout in ECMA-119.  Now burning software should correctly
