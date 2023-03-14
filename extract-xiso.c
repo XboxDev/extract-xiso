@@ -468,8 +468,6 @@
 #define XGD3_LSEEK_OFFSET         0x02080000ul
 #define XGD1_LSEEK_OFFSET         0x18300000ul
 
-#define n_sectors( size )				( ( size ) / XISO_SECTOR_SIZE + ( ( size ) % XISO_SECTOR_SIZE ? 1 : 0 ) )
-
 #define	XISO_HEADER_DATA				"MICROSOFT*XBOX*MEDIA"
 #define XISO_HEADER_DATA_LENGTH			20
 #define XISO_HEADER_OFFSET				0x10000
@@ -490,7 +488,7 @@
 #define XISO_DIRTABLE_SIZE				4
 #define XISO_FILESIZE_SIZE				4
 #define XISO_DWORD_SIZE					4
-#define XISO_FILETIME_SIZE				8
+#define XISO_FILETIME_SIZE				sizeof(file_time_t)
 
 #define XISO_SECTOR_SIZE				2048
 #define XISO_UNUSED_SIZE				0x7c8
@@ -514,6 +512,7 @@
 #define XISO_MEDIA_ENABLE_LENGTH		8
 #define XISO_MEDIA_ENABLE_BYTE_POS		7
 
+#define n_sectors(size)					( (size) / XISO_SECTOR_SIZE + ( (size) % XISO_SECTOR_SIZE ? 1 : 0 ) )
 #define n_dword(offset)					( (offset) / XISO_DWORD_SIZE + ( (offset) % XISO_DWORD_SIZE ? 1 : 0 ) )
 
 #define EMPTY_SUBDIRECTORY				( (dir_node_avl *) 1 )
@@ -535,7 +534,7 @@ typedef enum modes { k_generate_avl, k_extract, k_list, k_rewrite } modes;
 typedef enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 } errors;
 typedef enum strategies { tree_strategy, discover_strategy } strategies;
 
-typedef void (*progress_callback)( xoff_t in_current_value, xoff_t in_final_value );
+typedef void (*progress_callback)( long long in_current_value, long long in_final_value );
 typedef int (*traversal_callback)( void *in_node, void *in_context, int in_depth );
 
 typedef struct dir_node dir_node;
@@ -587,7 +586,7 @@ typedef struct write_tree_context {
 	char							   *path;
 	int									from;
 	progress_callback					progress;
-	xoff_t								final_bytes;
+	long long							final_bytes;
 } write_tree_context;
 
 
@@ -608,7 +607,7 @@ int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size )
 int free_dir_node_avl(void* in_dir_node_avl, void* in_context, int in_depth);
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path );
-int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name );
+int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, char *in_iso_name );
 int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint16_t end_offset, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
 int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
 int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback );
@@ -636,12 +635,12 @@ static bool								s_quiet = false;
 static char							   *s_pattern = nil;
 static long							   *s_gs_table = nil;
 static long							   *s_bc_table = nil;
-static xoff_t							s_total_bytes = 0;
+static long long						s_total_bytes = 0;
 static int								s_total_files = 0;
 static char							   *s_copy_buffer = nil;
 static bool								s_real_quiet = false;
 static bool								s_media_enable = true;
-static xoff_t							s_total_bytes_all_isos = 0;
+static long long						s_total_bytes_all_isos = 0;
 static int								s_total_files_all_isos = 0;
 static bool								s_warned = false;
 
@@ -661,7 +660,7 @@ int main( int argc, char **argv ) {
 	create_list	   *create = nil, *p, *q, **r;
 	int				i, fd, opt_char, err = 0, isos = 0;
 	bool			extract = true, rewrite = false, x_seen = false, delete = false, optimized;
-	char		   *path = nil, *buf = nil, *new_iso_path = nil, tag[ XISO_OPTIMIZED_TAG_LENGTH * sizeof(long) ];
+	char		   *path = nil, *buf = nil, *new_iso_path = nil, tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
 
 	if ( argc < 2 ) { usage(); exit( 1 ); }
 	
@@ -837,7 +836,7 @@ int main( int argc, char **argv ) {
 			}
 		}
 		
-		if ( ! err ) exiso_log( "\n\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], (long long int) s_total_bytes );
+		if ( ! err ) exiso_log( "\n\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], s_total_bytes );
 		
 		if ( new_iso_path ) {
 			if ( ! err ) exiso_log( "\n%s successfully rewritten%s%s\n", argv[ i ], path ? " as " : ".", path ? new_iso_path : "" );
@@ -849,7 +848,7 @@ int main( int argc, char **argv ) {
 		if ( err == err_iso_no_files ) err = 0;
 	}
 	
-	if ( ! err && isos > 1 ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
+	if ( ! err && isos > 1 ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, s_total_bytes_all_isos );
 	if ( s_warned ) exiso_warn( "Warning(s) were issued during execution--review stderr!\n" );
 	
 	boyer_moore_done();
@@ -895,7 +894,7 @@ int log_err(unused_release const char* in_file, unused_release int in_line, cons
 #endif
 
 
-int verify_xiso( int in_xiso, int32_t *out_root_dir_sector, int32_t *out_root_dir_size, char *in_iso_name ) {
+int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, char *in_iso_name ) {
 	int				err = 0;
 	char			buffer[ XISO_HEADER_DATA_LENGTH ];
 
@@ -1085,7 +1084,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 	if ( ! in_root ) {
 		if ( err ) { exiso_log( "\ncould not create %s%s\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "" ); }
-		else exiso_log( "\nsucessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, (long long int) s_total_bytes );
+		else exiso_log( "\nsucessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
 	}
 			
 	if ( root.subdirectory != EMPTY_SUBDIRECTORY ) avl_traverse_depth_first( root.subdirectory, free_dir_node_avl, nil, k_postfix, 0 );
@@ -1112,7 +1111,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	dir_node_avl		   *root = nil;
 	bool					repair = false;
 	xoff_t					root_dir_start;
-	int32_t					root_dir_sect = 0, root_dir_size = 0;
+	uint32_t				root_dir_sect = 0, root_dir_size = 0;
 	uint16_t				root_end_offset;
 	int						xiso = 0, err = 0, len = 0, path_len = 0, add_slash = 0;
 	char				   *buf = nil, *cwd = nil, *name = nil, *short_name = nil, *iso_name = nil;
@@ -1639,7 +1638,7 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 #endif
 
 
-int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
+int extract_file(int in_xiso, dir_node *in_file, modes in_mode, char* path) {
 	int						err = 0;
 	xoff_t					file_start = (xoff_t)in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 	uint32_t				i, size, totalsize = 0;
