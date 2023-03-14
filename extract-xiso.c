@@ -464,9 +464,13 @@
 #endif
 
 
-#define GLOBAL_LSEEK_OFFSET       0x0FD90000ul
-#define XGD3_LSEEK_OFFSET         0x02080000ul
-#define XGD1_LSEEK_OFFSET         0x18300000ul
+#define START_LSEEK_OFFSET				0x00000000ul
+#define XGD3_LSEEK_OFFSET				0x02080000ul
+#define GLOBAL_LSEEK_OFFSET				0x0FD90000ul
+#define XGD1_LSEEK_OFFSET				0x18300000ul
+#define LSEEK_OFFSETS_LEN				4
+/* The offsets should be in ascending order, otherwise we could get a seek error before checking the correct one */
+xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET, GLOBAL_LSEEK_OFFSET, XGD1_LSEEK_OFFSET};
 
 #define	XISO_HEADER_DATA				"MICROSOFT*XBOX*MEDIA"
 #define XISO_HEADER_DATA_LENGTH			20
@@ -590,6 +594,7 @@ typedef struct write_tree_context {
 } write_tree_context;
 
 
+xoff_t lseek_with_error(int fd, xoff_t offset, int whence);
 int log_err( const char *in_file, int in_line, const char *in_format, ... );
 void avl_rotate_left( dir_node_avl **in_root );
 void avl_rotate_right( dir_node_avl **in_root );
@@ -802,7 +807,7 @@ int main( int argc, char **argv ) {
 			optimized = false;
 		
 			if ( ( fd = open( argv[ i ], READFLAGS, 0 ) ) == -1 ) open_err( argv[ i ] );
-			if ( ! err && lseek( fd, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
+			if ( ! err && lseek_with_error( fd, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
 			if ( ! err && read( fd, tag, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) read_err();
 			
 			if ( fd != -1 ) close( fd );
@@ -859,6 +864,19 @@ int main( int argc, char **argv ) {
 	return err;
 }
 
+/* Wrapper to avoid changing old code, since lseek will not return error if offset is beyond end of file. Use only on input. */
+xoff_t lseek_with_error(int fd, xoff_t offset, int whence) {
+	xoff_t pos = lseek(fd, offset, whence);	// First execute the seek, to save the offset
+	if (pos == -1) return -1;
+	xoff_t end = lseek(fd, 0, SEEK_END);	// Then save the end of the file
+	if (end == -1) return -1;
+	if (pos > end) {
+		errno = EINVAL;
+		return -1;
+	}
+	return lseek(fd, pos, SEEK_SET);		// Finally seek again to saved offset
+}
+
 
 int log_err(unused_release const char* in_file, unused_release int in_line, const char* in_format, ...) {
 	va_list			ap;
@@ -895,31 +913,18 @@ int log_err(unused_release const char* in_file, unused_release int in_line, cons
 
 
 int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, char *in_iso_name ) {
-	int				err = 0;
-	char			buffer[ XISO_HEADER_DATA_LENGTH ];
+	int				i, err = 0;
+	char			buffer[XISO_HEADER_DATA_LENGTH];
 
-	if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET, SEEK_SET ) == -1 ) seek_err();
-	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) 
-	{
-		if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + GLOBAL_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
-		if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-		if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) )
-		{
-			if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XGD3_LSEEK_OFFSET, SEEK_SET ) == -1 ) seek_err();
-			if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-			if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH))
-			{
-				if (lseek(in_xiso, (xoff_t)XISO_HEADER_OFFSET + XGD1_LSEEK_OFFSET, SEEK_SET) == -1) seek_err();
-				if (!err && read(in_xiso, buffer, XISO_HEADER_DATA_LENGTH) != XISO_HEADER_DATA_LENGTH) read_err();
-				if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH)) misc_err("%s does not appear to be a valid xbox iso image", in_iso_name)
-				else s_xbox_disc_lseek = XGD1_LSEEK_OFFSET;
-			}
-			else s_xbox_disc_lseek = XGD3_LSEEK_OFFSET;
+	for (i = 0; !err && i < LSEEK_OFFSETS_LEN; i++) {
+		if (lseek_with_error(in_xiso, (xoff_t)XISO_HEADER_OFFSET + lseek_offsets[i], SEEK_SET) == -1) seek_err();
+		if (!err && read(in_xiso, buffer, XISO_HEADER_DATA_LENGTH) != XISO_HEADER_DATA_LENGTH) read_err();
+		if (!err && !memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH)) {
+			s_xbox_disc_lseek = lseek_offsets[i];
+			break;	// Found
 		}
-		else s_xbox_disc_lseek = GLOBAL_LSEEK_OFFSET;
 	}
-	else s_xbox_disc_lseek = 0;
+	if (!err && i == LSEEK_OFFSETS_LEN) misc_err("%s does not appear to be a valid xbox iso image", in_iso_name);
 
 	// read root directory information
 	if ( ! err && read( in_xiso, out_root_dir_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) read_err();
@@ -929,12 +934,12 @@ int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_
 	little32( *out_root_dir_size );
 	
 	// seek to header tail and verify media tag
-	if ( ! err && lseek( in_xiso, (xoff_t) XISO_FILETIME_SIZE + XISO_UNUSED_SIZE, SEEK_CUR ) == -1 ) seek_err();
+	if ( ! err && lseek_with_error(in_xiso, (xoff_t)XISO_FILETIME_SIZE + XISO_UNUSED_SIZE, SEEK_CUR) == -1) seek_err();
 	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
 	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s appears to be corrupt", in_iso_name );
 
 	// seek to root directory sector
-	if (!err && lseek(in_xiso, (xoff_t)*out_root_dir_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
+	if (!err && lseek_with_error(in_xiso, (xoff_t)*out_root_dir_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
 	
 	return err;
 }
@@ -1043,7 +1048,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	}
 	if ( ! err ) {
 		if ( in_root ) {
-			if ( lseek( in_xiso, (xoff_t) XISO_HEADER_OFFSET + XISO_HEADER_DATA_LENGTH + XISO_SECTOR_OFFSET_SIZE + XISO_DIRTABLE_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
+			if (lseek_with_error(in_xiso, (xoff_t)XISO_HEADER_OFFSET + XISO_HEADER_DATA_LENGTH + XISO_SECTOR_OFFSET_SIZE + XISO_DIRTABLE_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
 			if ( ! err && read( in_xiso, buf, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) read_err();
 			if ( ! err && write( xiso, buf, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();			
 
@@ -1174,7 +1179,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 			root_dir_start = (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 			root_end_offset = (uint16_t)(n_sectors(root_dir_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE);
 
-			if (!err && lseek(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
+			if (!err && lseek_with_error(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
 			
 			if ( in_mode == k_rewrite ) {
 				if (!err && root_dir_size == 0) root = EMPTY_SUBDIRECTORY;
@@ -1218,7 +1223,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 	if (entry_offset >= end_offset) misc_err("attempt to read node entry beyond directory end");
 
 	do {
-		if (!err && lseek(in_xiso, in_dir_start + (xoff_t)entry_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+		if (!err && lseek_with_error(in_xiso, in_dir_start + (xoff_t)entry_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
 
 		if (!err && read(in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
 		if (!err && l_offset == XISO_PAD_SHORT) {
@@ -1300,13 +1305,13 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 	if (strategy != discover_strategy) {
 		// Recurse on left node
 		if (!err && l_offset) {
-			if (lseek(in_xiso, in_dir_start + (xoff_t)l_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+			if (lseek_with_error(in_xiso, in_dir_start + (xoff_t)l_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
 			if (!err) err = traverse_xiso(in_xiso, in_dir_start, l_offset, end_offset, in_path, in_mode, &avl, strategy);
 		}
 
 		// Recurse on right node
 		if (!err && r_offset) {
-			if (lseek(in_xiso, in_dir_start + (xoff_t)r_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
+			if (lseek_with_error(in_xiso, in_dir_start + (xoff_t)r_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
 			if (!err) err = traverse_xiso(in_xiso, in_dir_start, r_offset, end_offset, in_path, in_mode, &avl, strategy);
 		}
 	}
@@ -1322,7 +1327,7 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 
 	if (node->attributes & XISO_ATTRIBUTE_DIR) {	// Process directory
 
-		if (!err) if (lseek(in_xiso, dir_start, SEEK_SET) == -1) seek_err();
+		if (!err) if (lseek_with_error(in_xiso, dir_start, SEEK_SET) == -1) seek_err();
 
 		if (!err) {
 			if (!s_remove_systemupdate || !strstr(node->filename, s_systemupdate))
@@ -1646,7 +1651,7 @@ int extract_file(int in_xiso, dir_node *in_file, modes in_mode, char* path) {
 	float					totalpercent = 0.0f;
 	int						out = -1;
 
-	if (lseek(in_xiso, file_start, SEEK_SET) == -1) seek_err();
+	if (lseek_with_error(in_xiso, file_start, SEEK_SET) == -1) seek_err();
 
 	if ( !s_remove_systemupdate || !strstr( path, s_systemupdate ) ) {
 		if ( in_mode == k_extract ) {
@@ -1768,7 +1773,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 			if ( in_context->from == -1 ) {
 				if ( ( fd = open( in_avl->filename, READFLAGS, 0 ) ) == -1 ) open_err( in_avl->filename );
 			} else {
-				if ( lseek( fd = in_context->from, (xoff_t) in_avl->old_start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET ) == -1 ) seek_err();
+				if (lseek_with_error(fd = in_context->from, (xoff_t)in_avl->old_start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
 			}
 		}
 
@@ -2103,15 +2108,15 @@ void write_sector( int in_xiso, xoff_t in_start, char *in_name, char *in_extensi
 	sprintf( buf, "%" PRId64 ".%s.%s", in_start, in_name, in_extension ? in_extension : "");
 
 	if ( ! err && ( fp = open( buf, WRITEFLAGS, 0644 ) ) == -1 ) open_err( buf );
-	if ( ! err && ( curpos = lseek( in_xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
-	if ( ! err && lseek( in_xiso, in_start, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && ( curpos = lseek_with_error( in_xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
+	if ( ! err && lseek_with_error( in_xiso, in_start, SEEK_SET ) == -1 ) seek_err();
 	
 	if ( ! err && ( sect = (char *) malloc( XISO_SECTOR_SIZE ) ) == nil ) mem_err();
 	
 	if ( ! err && read( in_xiso, sect, XISO_SECTOR_SIZE ) != XISO_SECTOR_SIZE ) read_err();
 	if ( ! err && ( wrote = write( fp, sect, XISO_SECTOR_SIZE ) ) != XISO_SECTOR_SIZE ) write_err();
 	
-	if ( ! err && lseek( in_xiso, curpos, SEEK_SET ) == -1 ) seek_err();
+	if ( ! err && lseek_with_error( in_xiso, curpos, SEEK_SET ) == -1 ) seek_err();
 	
 	if ( sect ) free( sect );
 	if ( fp != -1 ) close( fp );
