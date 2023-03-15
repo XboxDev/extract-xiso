@@ -356,6 +356,7 @@
 	#define lseek						_lseeki64
 	#define mkdir( a, b )				_mkdir( (a) )
 	#define stat						_stat64
+	#define realpath(a, b)				_fullpath(b, a, _MAX_PATH)
 
     typedef int64_t                     xoff_t;
 #else
@@ -954,38 +955,35 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
 	int						i = 0, n = 0, xiso = -1, err = 0;
-	char				   *cwd = nil, *buf = nil, *iso_name = nil, *xiso_path = nil, *iso_dir = nil;
+	char				   *cwd = nil, *buf = nil, *iso_name = nil, *xiso_path = nil, *iso_dir = nil, *real_path = nil;
 
 	s_total_bytes = s_total_files = 0;
 
 	if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
 	if ( ! err ) {
 		if ( ! in_root ) {
-			if ( chdir( in_root_directory ) == -1 ) chdir_err( in_root_directory );
-			if ( ! err ) {
-				i = (int)strlen(in_root_directory) - 1;
-				if ( in_root_directory[i] == '/' || in_root_directory[i] == '\\' ) in_root_directory[i] = 0;
-				if ((iso_dir = strrchr(in_root_directory, PATH_CHAR))) iso_dir++;
-				else iso_dir = in_root_directory;
+			i = (int)strlen(in_root_directory) - 1;
+			if ( in_root_directory[i] == '/' || in_root_directory[i] == '\\' ) in_root_directory[i] = 0;
+			if ((iso_dir = strrchr(in_root_directory, PATH_CHAR))) iso_dir++;
+			else iso_dir = in_root_directory;
 
-				iso_name = in_name ? in_name : iso_dir;
-			}
+			iso_name = in_name ? in_name : iso_dir;
 		} else {
 			iso_dir = iso_name = in_root_directory;
 		}
 	}
 	if ( ! err ) {
 		if ( ! *iso_dir ) iso_dir = PATH_CHAR_STR;
-		if ( ! in_output_directory ) in_output_directory = cwd;
-		i = (int)strlen(in_output_directory) - 1;
-		if ( in_output_directory[i] == PATH_CHAR ) in_output_directory[i] = 0;
 		if ( ! iso_name || ! *iso_name ) iso_name = "root";
 		else if ( iso_name[ 1 ] == ':' ) { iso_name[ 1 ] = iso_name[ 0 ]; ++iso_name; }
-#if defined( _WIN32 )
-		if ( ( asprintf( &xiso_path, "%s%c%s%s", *in_output_directory ? in_output_directory : cwd, PATH_CHAR, iso_name, in_name ? "" : ".iso" ) ) == -1 ) mem_err();
-#else
-		if ( ( asprintf( &xiso_path, "%s%s%s%c%s%s", *in_output_directory == PATH_CHAR ? "" : cwd, *in_output_directory == PATH_CHAR ? "" : PATH_CHAR_STR, in_output_directory, PATH_CHAR, iso_name, in_name ? "" : ".iso" ) ) == -1 ) mem_err();
-#endif
+		if (!err && (real_path = realpath(in_output_directory ? in_output_directory : ".", nil)) == nil) misc_err("unable to get absolute path of %s: %s", real_path, strerror(errno));
+		if (!err && (asprintf(&xiso_path, "%s%c%s%s", real_path, PATH_CHAR, iso_name, in_name ? "" : ".iso")) == -1) mem_err();
+		if (real_path) {
+			free(real_path);
+			real_path = nil;
+		}
+
+		if (!err && !in_root && chdir(in_root_directory) == -1) chdir_err(in_root_directory);
 	}
 	if ( ! err ) {
 		exiso_log( "\n%s %s%s:\n", in_root ? "rewriting" : "creating", iso_name, in_name ? "" : ".iso" );
