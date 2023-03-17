@@ -480,24 +480,24 @@ typedef int64_t							file_time_t;
     -v                  Print version information and exit.\n\
 ", banner, argv[ 0 ], argv[ 0 ] );
 
-#define exiso_log(...)					if ( ! s_quiet ) { printf(__VA_ARGS__); }
-#define exiso_warn(...)					if ( ! s_quiet ) { printf("\nWARNING: " __VA_ARGS__); s_warned = true; }
-#define flush()							if ( ! s_quiet ) { fflush( stdout ); }
+#define exiso_log(...)					do{ if ( ! s_quiet ) { printf(__VA_ARGS__); } } while(0)
+#define exiso_warn(...)					do{ if ( ! s_quiet ) { printf("\nWARNING: " __VA_ARGS__); s_warned = true; } } while(0)
+#define flush()							do{ if ( ! s_quiet ) { fflush( stdout ); } } while(0)
 
-#define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error" ); err = 1; }
-#define read_err()						{ log_err( __FILE__, __LINE__, "read error: %s", strerror( errno ) ); err = 1; }
-#define seek_err()						{ log_err( __FILE__, __LINE__, "seek error: %s", strerror( errno ) ); err = 1; }
-#define write_err()						{ log_err( __FILE__, __LINE__, "write error: %s", strerror( errno ) ); err = 1; }
-#define rread_err()						{ log_err( __FILE__, __LINE__, "unable to read remote file" ); err = 1; }
-#define rwrite_err()					{ log_err( __FILE__, __LINE__, "unable to write to remote file" ); err = 1; }
-#define unknown_err()					{ log_err( __FILE__, __LINE__, "an unrecoverable error has occurred" ); err = 1; }
-#define open_err( in_file )				{ log_err( __FILE__, __LINE__, "open error: %s %s", ( in_file ), strerror( errno ) ); err = 1; }
-#define chdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to change to directory %s: %s", ( in_dir ), strerror( errno ) ); err = 1; }
-#define mkdir_err( in_dir )				{ log_err( __FILE__, __LINE__, "unable to create directory %s: %s", ( in_dir ), strerror( errno ) ); err = 1; }
-#define ropen_err( in_file )			{ log_err( __FILE__, __LINE__, "unable to open remote file %s", ( in_file ) ); err = 1; }
-#define rchdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to change to remote directory %s", ( in_dir ) ); err = 1; }
-#define rmkdir_err( in_dir )			{ log_err( __FILE__, __LINE__, "unable to create remote directory %s", ( in_dir ) ); err = 1; }
-#define misc_err( ... )					{ log_err( __FILE__, __LINE__, __VA_ARGS__ ); err = 1; }
+#define mem_err()						do{ log_err( __FILE__, __LINE__, "out of memory error" ); err = 1; } while(0)
+#define read_err()						do{ log_err( __FILE__, __LINE__, "read error: %s", strerror( errno ) ); err = 1; } while(0)
+#define seek_err()						do{ log_err( __FILE__, __LINE__, "seek error: %s", strerror( errno ) ); err = 1; } while(0)
+#define write_err()						do{ log_err( __FILE__, __LINE__, "write error: %s", strerror( errno ) ); err = 1; } while(0)
+#define rread_err()						do{ log_err( __FILE__, __LINE__, "unable to read remote file" ); err = 1; } while(0)
+#define rwrite_err()					do{ log_err( __FILE__, __LINE__, "unable to write to remote file" ); err = 1; } while(0)
+#define unknown_err()					do{ log_err( __FILE__, __LINE__, "an unrecoverable error has occurred" ); err = 1; } while(0)
+#define open_err( in_file )				do{ log_err( __FILE__, __LINE__, "open error: %s %s", ( in_file ), strerror( errno ) ); err = 1; } while(0)
+#define chdir_err( in_dir )				do{ log_err( __FILE__, __LINE__, "unable to change to directory %s: %s", ( in_dir ), strerror( errno ) ); err = 1; } while(0)
+#define mkdir_err( in_dir )				do{ log_err( __FILE__, __LINE__, "unable to create directory %s: %s", ( in_dir ), strerror( errno ) ); err = 1; } while(0)
+#define ropen_err( in_file )			do{ log_err( __FILE__, __LINE__, "unable to open remote file %s", ( in_file ) ); err = 1; } while(0)
+#define rchdir_err( in_dir )			do{ log_err( __FILE__, __LINE__, "unable to change to remote directory %s", ( in_dir ) ); err = 1; } while(0)
+#define rmkdir_err( in_dir )			do{ log_err( __FILE__, __LINE__, "unable to create remote directory %s", ( in_dir ) ); err = 1; } while(0)
+#define misc_err( ... )					do{ log_err( __FILE__, __LINE__, __VA_ARGS__ ); err = 1; } while(0)
 
 
 #ifndef min
@@ -1122,7 +1122,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ! err && write( xiso, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) write_err();
 
 	if ( ! in_root ) {
-		if ( err ) { exiso_log( "\ncould not create %s%s\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "" ); }
+		if ( err ) exiso_log( "\ncould not create %s%s\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "" );
 		else exiso_log( "\nsucessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
 	}
 			
@@ -1207,7 +1207,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		}
 		
 		if (!err) {
-			if (asprintf(&buf, "%s%s%s%c", in_path ? in_path : "", add_slash && (!in_path) ? PATH_CHAR_STR : "", in_mode != k_list && (!in_path) ? iso_name : "", PATH_CHAR) == -1) mem_err()
+			if (asprintf(&buf, "%s%s%s%c", in_path ? in_path : "", add_slash && (!in_path) ? PATH_CHAR_STR : "", in_mode != k_list && (!in_path) ? iso_name : "", PATH_CHAR) == -1) mem_err();
 
 			root_dir_start = (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 			root_end_offset = (uint16_t)(n_sectors(root_dir_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE);
@@ -1693,15 +1693,13 @@ int extract_file(int in_xiso, dir_node *in_file, modes in_mode, char* path) {
 
 		if ( ! err ) {
 			exiso_log("\n");
-			if (in_file->file_size == 0) {
-				exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename);
-			}
+			if (in_file->file_size == 0) exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename);
 			else {
 				i = 0;
 				size = min(in_file->file_size, READWRITE_BUFFER_SIZE);
 				do {
 					read_size = read(in_xiso, s_copy_buffer, size);
-					if (read_size < 0) { read_err(); }
+					if (read_size < 0) read_err();
 					else if (in_mode == k_extract && read_size != 0) {
 						if (write(out, s_copy_buffer, read_size) != read_size) write_err();
 					}
@@ -1818,7 +1816,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 			xbe_file = len >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0;
 			do {
 				n = read(fd, buf + i, min(bytes, size - i));
-				if (n < 0) { read_err(); }
+				if (n < 0) read_err();
 				else if (n == 0) {	// Unexpected end of file
 					if (i > 0 && write(in_context->xiso, buf, i) != i) write_err();	// Write remaining 'i' bytes
 				}
@@ -1848,9 +1846,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 			}
 			exiso_log(err ? "failed" : "[OK]");
 
-			if (!err && size != in_avl->file_size) {
-				exiso_warn("File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!", in_avl->filename, size, in_avl->file_size);
-			}
+			if (!err && size != in_avl->file_size) exiso_warn("File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!", in_avl->filename, size, in_avl->file_size);
 
 			if (!err) {
 				++s_total_files;
