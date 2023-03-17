@@ -442,43 +442,7 @@ typedef int64_t							file_time_t;
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
 
-#define usage() 						fprintf( stderr, \
-"%s\n\
-  Usage:\n\
-\n\
-    %s [options] [-[lrx]] <file1.xiso> [file2.xiso] ...\n\
-    %s [options] -c <dir> [name] [-c <dir> [name]] ...\n\
-\n\
-  Mutually exclusive modes:\n\
-\n\
-    -c <dir> [name]     Create xiso from file(s) starting in <dir>.  If the\n\
-                          [name] parameter is specified, the xiso will be\n\
-                          created with the (path and) name given, otherwise\n\
-                          the xiso will be created in the current directory\n\
-                          with the name <dir>.iso.  The -c option may be\n\
-                          specified multiple times to create multiple xiso\n\
-                          images.\n\
-    -l                  List files in xiso(s).\n\
-    -r                  Rewrite xiso(s) as optimized xiso(s).\n\
-    -x                  Extract xiso(s) (the default mode if none is given).\n\
-                          If no directory is specified with -d, a directory\n\
-                          with the name of the xiso (minus the .iso portion)\n\
-                          will be created in the current directory and the\n\
-                          xiso will be expanded there.\n\
-\n\
-  Options:\n\
-\n\
-    -d <directory>      In extract mode, expand xiso in <directory>.\n\
-                        In rewrite mode, rewrite xiso in <directory>.\n\
-    -D                  In rewrite mode, delete old xiso after processing.\n\
-    -h                  Print this help text and exit.\n\
-    -m                  In create or rewrite mode, disable automatic .xbe\n\
-                          media enable patching (not recommended).\n\
-    -q                  Run quiet (suppress all non-error output).\n\
-    -Q                  Run silent (suppress all output).\n\
-    -s                  Skip $SystemUpdate folder.\n\
-    -v                  Print version information and exit.\n\
-", banner, argv[ 0 ], argv[ 0 ] );
+#define usage_and_exit(n)				print_usage_and_exit(n, argv[0])
 
 #define exiso_log(...)					do{ if ( ! s_quiet ) { printf(__VA_ARGS__); } } while(0)
 #define exiso_warn(...)					do{ if ( ! s_quiet ) { printf("\nWARNING: " __VA_ARGS__); s_warned = true; } } while(0)
@@ -631,6 +595,7 @@ typedef struct write_tree_context {
 } write_tree_context;
 
 
+void print_usage_and_exit(int ret, char* name);
 xoff_t lseek_with_error(int fd, xoff_t offset, int whence);
 int log_err( const char *in_file, int in_line, const char *in_format, ... );
 void avl_rotate_left( dir_node_avl **in_root );
@@ -704,15 +669,12 @@ int main( int argc, char **argv ) {
 	bool			extract = true, rewrite = false, x_seen = false, delete = false, optimized;
 	char		   *path = nil, *buf = nil, *new_iso_path = nil, tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
 
-	if ( argc < 2 ) { usage(); exit( 1 ); }
+	if (argc < 2) usage_and_exit(1);
 	
 	while ( ! err && ( opt_char = getopt( argc, argv, GETOPT_STRING ) ) != -1 ) {
 		switch ( opt_char ) {
 			case 'c': {
-				if ( x_seen || rewrite || ! extract ) {
-					usage();
-					exit( 1 );
-				}
+				if (x_seen || rewrite || !extract) usage_and_exit(1);
 			
 				for ( r = &create; *r != nil; r = &(*r)->next ) ;
 
@@ -736,23 +698,16 @@ int main( int argc, char **argv ) {
 			} break;
 
 			case 'h': {
-				usage();
-				exit( 0 );
+				usage_and_exit(0);
 			} break;
 			
 			case 'l': {
-				if ( x_seen || rewrite || create ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || rewrite || create ) usage_and_exit(1);
 				extract = false;
 			} break;
 			
 			case 'm': {
-				if ( x_seen || ! extract ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || ! extract ) usage_and_exit(1);
 				s_media_enable = false;
 			} break;
 			
@@ -765,10 +720,7 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'r': {
-				if ( x_seen || ! extract || create ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || ! extract || create ) usage_and_exit(1);
 				rewrite = true;
 			} break;
 
@@ -777,31 +729,29 @@ int main( int argc, char **argv ) {
 			} break;
 
 			case 'v': {
-				printf( "%s", banner );
-				exit( 0 );
+				printf(banner);
+				exit(0);
 			} break;
 			
 			case 'x': {
-				if ( ! extract || rewrite || create ) {
-					usage();
-					exit( 1 );
-				}
+				if ( ! extract || rewrite || create ) usage_and_exit(1);
 				x_seen = true;
 			} break;
 
 			default: {
-				usage();
-				exit( 1 );
+				usage_and_exit(1);
 			} break;
 		}
 	}
 	
 	if ( ! err ) {
 
-		if ( create ) { if ( optind < argc ) { usage(); exit( 1 ); } }
-		else if ( optind >= argc ) { usage(); exit( 1 ); }
+		if (create) {
+			if (optind < argc) usage_and_exit(1);
+		}
+		else if (optind >= argc) usage_and_exit(1);
 	
-		exiso_log( "%s", banner );
+		exiso_log(banner);
 	
 		if ( ( extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nil ) mem_err();
 	}
@@ -899,6 +849,47 @@ int main( int argc, char **argv ) {
 	if ( path ) free( path );
 		
 	return err;
+}
+
+void print_usage_and_exit(int ret, char* name) {
+	fprintf(ret ? stderr : stdout, banner "\n\
+  Usage:\n\
+\n\
+    %s [options] [-[lrx]] <file1.xiso> [file2.xiso] ...\n\
+    %s [options] -c <dir> [name] [-c <dir> [name]] ...\n\
+\n\
+  Mutually exclusive modes:\n\
+\n\
+    -c <dir> [name]     Create xiso from file(s) starting in <dir>.  If the\n\
+                          [name] parameter is specified, the xiso will be\n\
+                          created with the (path and) name given, otherwise\n\
+                          the xiso will be created in the current directory\n\
+                          with the name <dir>.iso.  The -c option may be\n\
+                          specified multiple times to create multiple xiso\n\
+                          images.\n\
+    -l                  List files in xiso(s).\n\
+    -r                  Rewrite xiso(s) as optimized xiso(s).\n\
+    -x                  Extract xiso(s) (the default mode if none is given).\n\
+                          If no directory is specified with -d, a directory\n\
+                          with the name of the xiso (minus the .iso portion)\n\
+                          will be created in the current directory and the\n\
+                          xiso will be expanded there.\n\
+\n\
+  Options:\n\
+\n\
+    -d <directory>      In extract mode, expand xiso in <directory>.\n\
+                        In rewrite mode, rewrite xiso in <directory>.\n\
+    -D                  In rewrite mode, delete old xiso after processing.\n\
+    -h                  Print this help text and exit.\n\
+    -m                  In create or rewrite mode, disable automatic .xbe\n\
+                          media enable patching (not recommended).\n\
+    -q                  Run quiet (suppress all non-error output).\n\
+    -Q                  Run silent (suppress all output).\n\
+    -s                  Skip $SystemUpdate folder.\n\
+    -v                  Print version information and exit.\n\
+", name, name);
+	fflush(ret ? stderr : stdout);
+	exit(ret);
 }
 
 /* Wrapper to avoid changing old code, since lseek will not return error if offset is beyond end of file. Use only on input. */
