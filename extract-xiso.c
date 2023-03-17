@@ -646,7 +646,7 @@ void boyer_moore_done();
 char *boyer_moore_search( char *in_text, long in_text_len );
 int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size );
 
-int free_dir_node_avl(void* in_dir_node_avl, void* in_context, int in_depth);
+int free_dir_node_avl(dir_node_avl* in_dir_node_avl, void* in_context, int in_depth);
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path );
 int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, char *in_iso_name );
@@ -1126,7 +1126,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 		else exiso_log( "\nsucessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
 	}
 			
-	if ( root.subdirectory != EMPTY_SUBDIRECTORY ) avl_traverse_depth_first( root.subdirectory, free_dir_node_avl, nil, k_postfix, 0 );
+	if ( root.subdirectory != EMPTY_SUBDIRECTORY ) avl_traverse_depth_first( root.subdirectory, (traversal_callback) free_dir_node_avl, nil, k_postfix, 0 );
 	
 	if ( xiso != -1 ) {
 		close( xiso );
@@ -1725,13 +1725,11 @@ int extract_file(int in_xiso, dir_node *in_file, modes in_mode, char* path) {
 }
 
 
-int free_dir_node_avl( void *in_dir_node_avl, unused void *in_context, unused int in_depth ) {
-	dir_node_avl	   *avl = (dir_node_avl *) in_dir_node_avl;
-
-	if ( avl->subdirectory && avl->subdirectory != EMPTY_SUBDIRECTORY ) avl_traverse_depth_first( avl->subdirectory, free_dir_node_avl, nil, k_postfix, 0 );
+int free_dir_node_avl( dir_node_avl *in_dir_node_avl, unused void *in_context, unused int in_depth ) {
+	if (in_dir_node_avl->subdirectory && in_dir_node_avl->subdirectory != EMPTY_SUBDIRECTORY) avl_traverse_depth_first(in_dir_node_avl->subdirectory, (traversal_callback)free_dir_node_avl, nil, k_postfix, 0);
 	
-	free( avl->filename );
-	free( avl );
+	free(in_dir_node_avl->filename);
+	free(in_dir_node_avl);
 
 	return 0;
 }
