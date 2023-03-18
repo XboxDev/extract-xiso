@@ -828,7 +828,11 @@ int main( int argc, char **argv ) {
 			}
 		}
 		
-		if ( ! err ) exiso_log( "\n\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[ i ], s_total_bytes );
+		if (!err) {
+			exiso_log("\n\n%u files in %s total %lld bytes\n", s_total_files, rewrite ? new_iso_path : argv[i], s_total_bytes);
+			s_total_files_all_isos += s_total_files;
+			s_total_bytes_all_isos += s_total_bytes;
+		}
 		
 		if ( new_iso_path ) {
 			if ( ! err ) exiso_log( "\n%s successfully rewritten%s%s\n", argv[ i ], path ? " as " : ".", path ? new_iso_path : "" );
@@ -1397,9 +1401,7 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 				}
 
 				++s_total_files;
-				++s_total_files_all_isos;
 				s_total_bytes += node->file_size;
-				s_total_bytes_all_isos += node->file_size;
 			}
 		}
 	}
