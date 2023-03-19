@@ -823,7 +823,7 @@ int main( int argc, char **argv ) {
 					if ( buf ) free( buf );
 				} else {
 					// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
-					if ( ! err ) err = decode_xiso( argv[ i ], path, extract ? k_extract : k_list, nil );
+					if ( ! err ) err = decode_xiso( argv[ i ], extract ? path : nil, extract ? k_extract : k_list, nil );
 				}
 			}
 		}
@@ -1019,7 +1019,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	if ( ! err ) {
 		exiso_log( "\n%s %s%s:\n", in_root ? "rewriting" : "creating", iso_name, in_name ? "" : ".iso" );
 
-		root.start_sector = XISO_ROOT_DIRECTORY_SECTOR;		
+		root.start_sector = XISO_ROOT_DIRECTORY_SECTOR;
 
 		s_total_bytes = s_total_files = 0;
 
@@ -1118,9 +1118,9 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 	if ( ! in_root ) {
 		if ( err ) exiso_log( "\ncould not create %s%s\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "" );
-		else exiso_log( "\nsucessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
+		else exiso_log( "\n\nsuccessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
 	}
-			
+	
 	if ( root.subdirectory != EMPTY_SUBDIRECTORY ) avl_traverse_depth_first( root.subdirectory, (traversal_callback) free_dir_node_avl, nil, k_postfix, 0 );
 	
 	if ( xiso != -1 ) {
@@ -1142,87 +1142,75 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path ) {
 	dir_node_avl		   *root = nil;
-	bool					repair = false;
 	xoff_t					root_dir_start;
 	uint32_t				root_dir_sect = 0, root_dir_size = 0;
 	uint16_t				root_end_offset;
-	int						xiso = 0, err = 0, len = 0, path_len = 0, add_slash = 0;
-	char				   *buf = nil, *cwd = nil, *name = nil, *short_name = nil, *iso_name = nil;
+	size_t					len;
+	int						xiso = 0, err = 0;
+	char				   *path = nil, *cwd = nil, *name = nil, *short_name = nil, *iso_name = nil;
 
-	if ( ( xiso = open( in_xiso, READFLAGS, 0 ) ) == -1 ) open_err( in_xiso );
+	if ((xiso = open(in_xiso, READFLAGS, 0)) == -1) open_err(in_xiso);
 	
-	if ( ! err ) {
-		len = (int) strlen( in_xiso );
-		
-		if ( in_mode == k_rewrite ) {
-			in_xiso[ len -= 4 ] = 0;
-			repair = true;
-		}
-		
+	if (in_mode == k_rewrite) in_xiso[strlen(in_xiso) - 4] = '\0';
+
+	if (!err) {
 		if ((name = strrchr(in_xiso, PATH_CHAR))) name++;
 		else name = in_xiso;
-		
-		len = (int) strlen( name );
-		
+
 		// create a directory of the same name as the file we are working on, minus the ".iso" portion
-		if (len > 4 && strcasecmp(&name[len - 4], ".iso") == 0) {
-			name[ len -= 4 ] = 0;
-			if ( ( short_name = strdup( name ) ) == nil ) mem_err();
-			name[ len ] = '.';
+		if ((len = strlen(name)) >= 4 && strcasecmp(&name[len - 4], ".iso") == 0) {
+			name[len - 4] = '\0';
+			if ((short_name = strdup(name)) == nil) mem_err();
+			name[len - 4] = '.';
+		}
+
+		iso_name = short_name ? short_name : name;
+	}
+
+	if (!err && in_path && (len = strlen(in_path)) > 0) {
+		if (in_path[len - 1] == '/' || in_path[len - 1] == '\\') in_path[len - 1] = '\0';
+	}
+
+	if (!err && in_mode == k_extract) {
+		if (in_path) {
+			if (strlen(in_path) == 0) misc_err("empty destination path");
+			if (!err && (cwd = getcwd(nil, 0)) == nil) mem_err();
+			if (!err && mkdir(in_path, 0755) == -1) mkdir_err(in_path);
+			if (!err && chdir(in_path) == -1) chdir_err(in_path);
+		}
+		else {
+			if (strlen(iso_name) == 0) misc_err("invalid xiso image name: %s", in_xiso);
+			if (!err && mkdir(iso_name, 0755) == -1) mkdir_err(iso_name);
+			if (!err && chdir(iso_name) == -1) chdir_err(iso_name);
 		}
 	}
 
-	if ( ! err && ! len ) misc_err( "invalid xiso image name: %s", in_xiso );
+	if (!err) err = verify_xiso(xiso, &root_dir_sect, &root_dir_size, name);
 
-	if ( ! err && in_mode == k_extract && in_path ) {
-		if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
-		if ( ! err && mkdir( in_path, 0755 ) == -1 ) mkdir_err( in_path );
-		if ( ! err && chdir( in_path ) == -1 ) chdir_err( in_path );
-	}
+	if (!err && in_mode != k_rewrite) exiso_log("\n%s %s:\n", in_mode == k_extract ? "extracting" : "listing", name);
 
-	if ( ! err ) err = verify_xiso( xiso, &root_dir_sect, &root_dir_size, name );
+	if (!err) {
+		if (asprintf(&path, "%s%c", in_path ? in_path : (in_mode != k_list ? iso_name : ""), PATH_CHAR) == -1) mem_err();
 
-	iso_name = short_name ? short_name : name;
+		root_dir_start = (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
+		root_end_offset = (uint16_t)(n_sectors(root_dir_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE);
 
-	if ( ! err && in_mode != k_rewrite ) {
-		exiso_log( "\n%s %s:\n", in_mode == k_extract ? "extracting" : "listing", name );
-
-		if ( in_mode == k_extract ) {
-			if ( ! in_path ) {
-				if ( ( err = mkdir( iso_name, 0755 ) ) ) mkdir_err( iso_name );
-				if ( ! err && ( err = chdir( iso_name ) ) ) chdir_err( iso_name );
+		if (!err && lseek_with_error(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
+		
+		if (in_mode == k_rewrite) {
+			if (!err && root_dir_size == 0) root = EMPTY_SUBDIRECTORY;
+			else {
+				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, k_generate_avl, &root, tree_strategy);
+				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, k_generate_avl, &root, discover_strategy);
 			}
+			if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, nil, nil);
 		}
-	}
-
-	if ( ! err ) {						
-		if ( in_path ) {
-			path_len = (int) strlen( in_path );
-			if ( in_path[ path_len - 1 ] != PATH_CHAR ) ++add_slash;
+		else {
+			exiso_log("\n%s%s (0 bytes)%s", in_mode == k_extract ? "creating\t" : "", path, in_mode == k_extract ? " [OK]" : ""); flush();
+			if (!err && root_dir_size != 0) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, in_mode, nil, discover_strategy);
 		}
 		
-		if (!err) {
-			if (asprintf(&buf, "%s%s%s%c", in_path ? in_path : "", add_slash && (!in_path) ? PATH_CHAR_STR : "", in_mode != k_list && (!in_path) ? iso_name : "", PATH_CHAR) == -1) mem_err();
-
-			root_dir_start = (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
-			root_end_offset = (uint16_t)(n_sectors(root_dir_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE);
-
-			if (!err && lseek_with_error(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
-			
-			if ( in_mode == k_rewrite ) {
-				if (!err && root_dir_size == 0) root = EMPTY_SUBDIRECTORY;
-				else {
-					if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, tree_strategy);
-					if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, k_generate_avl, &root, discover_strategy);
-				}
-				if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, nil, nil);
-			}
-			else {
-				if (!err && root_dir_size != 0) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, buf, in_mode, nil, discover_strategy);
-			}
-			
-			if(buf) free(buf);
-		}
+		if(path) free(path);
 	}
 	
 	if ( err == err_iso_rewritten ) err = 0;
@@ -1236,7 +1224,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		free( cwd );
 	}
 	
-	if ( repair ) in_xiso[ strlen( in_xiso ) ] = '.';
+	if (in_mode == k_rewrite) in_xiso[strlen(in_xiso)] = '.';
 
 	return err;
 }
@@ -1365,7 +1353,7 @@ int process_node(int in_xiso, dir_node* node, char* in_path, modes in_mode, dir_
 					if (!err && (err = chdir(node->filename))) chdir_err(node->filename);
 				}
 				if (!err && in_mode != k_generate_avl) {
-					exiso_log("\n%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating " : "", in_path, node->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
+					exiso_log("\n%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating\t" : "", in_path, node->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
 				}
 			}
 		}
@@ -1686,7 +1674,7 @@ int extract_file(int in_xiso, dir_node *in_file, modes in_mode, char* path) {
 
 		if ( ! err ) {
 			exiso_log("\n");
-			if (in_file->file_size == 0) exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename);
+			if (in_file->file_size == 0) exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename);
 			else {
 				i = 0;
 				size = min(in_file->file_size, READWRITE_BUFFER_SIZE);
@@ -1699,7 +1687,7 @@ int extract_file(int in_xiso, dir_node *in_file, modes in_mode, char* path) {
 					if (!err) {
 						totalsize += read_size;
 						totalpercent = (totalsize * 100.0f) / in_file->file_size;
-						exiso_log("%s%s%s (%u bytes) [%.1f%%]\r", in_mode == k_extract ? "extracting " : "", path, in_file->filename, in_file->file_size, totalpercent);
+						exiso_log("%s%s%s (%u bytes) [%.1f%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename, in_file->file_size, totalpercent);
 
 						i += read_size;
 						size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
@@ -1739,7 +1727,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 		else { if ( asprintf( &context.path, "%c", PATH_CHAR ) == -1 ) mem_err(); }
 
 		if ( ! err ) {
-			exiso_log( "\nadding %s (0 bytes) [OK]", context.path );
+			exiso_log( "\nadding\t%s (0 bytes) [OK]", context.path );
 	
 			if ( in_avl->subdirectory != EMPTY_SUBDIRECTORY ) {
 				context.xiso = in_context->xiso;
@@ -1800,7 +1788,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 		}
 
 		if ( ! err ) {
-			exiso_log( "\nadding %s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
+			exiso_log( "\nadding\t%s%s (%u bytes) ", in_context->path, in_avl->filename, in_avl->file_size ); flush();
 
 			bytes = in_avl->file_size;
 			len = strlen(in_avl->filename);
