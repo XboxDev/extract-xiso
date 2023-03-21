@@ -664,10 +664,12 @@ static xoff_t							s_xbox_disc_lseek = 0;
 
 int main( int argc, char **argv ) {
 	struct stat		sb;
-	create_list	   *create = nil, *p, *q, **r;
+	create_list		*create = nil, *p, *q;
 	int				i, fd, opt_char, err = 0, isos = 0;
 	bool			extract = true, rewrite = false, x_seen = false, delete = false, optimized;
-	char		   *path = nil, *buf = nil, *new_iso_path = nil, tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
+	ptrdiff_t		diff;
+	char			*path = nil, *buf = nil, *new_iso_path = nil;
+	char			tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
 
 	if (argc < 2) usage_and_exit(1);
 	
@@ -675,17 +677,17 @@ int main( int argc, char **argv ) {
 		switch ( opt_char ) {
 			case 'c': {
 				if (x_seen || rewrite || !extract) usage_and_exit(1);
-			
-				for ( r = &create; *r != nil; r = &(*r)->next ) ;
 
-				if ( ( *r = (create_list *) malloc( sizeof(create_list) ) ) == nil ) mem_err();
-				if ( ! err ) {
-					(*r)->name = nil;
-					(*r)->next = nil;
-					
-					if ( ( (*r)->path = strdup( optarg ) ) == nil ) mem_err();
+				if (create == nil) {
+					if ((p = create = (create_list*)calloc(1, sizeof(create_list))) == nil) mem_err();
 				}
-				if ( ! err && argv[ optind ] && *argv[ optind ] != '-' && *argv[ optind ] && ( (*r)->name = strdup( argv[ optind++ ] ) ) == nil ) mem_err();
+				else {
+					p = create;
+					while (p != nil && p->next != nil) p = p->next;
+					if ((p = p->next = (create_list*)calloc(1, sizeof(create_list))) == nil) mem_err();
+				}
+				if (!err && (p->path = strdup(optarg)) == nil) mem_err();
+				if (!err && argv[optind] && *argv[optind] != '-' && *argv[optind] && (p->name = strdup(argv[optind++])) == nil) mem_err();
 			} break;
 			
 			case 'd': {
@@ -759,28 +761,27 @@ int main( int argc, char **argv ) {
 	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
 
 	if ( ! err && create ) {
-		for ( p = create; ! err && p != nil; ) {
-			char*		tmp = nil;
-			ptrdiff_t	diff = 0;
-
-			if ( p->name && (tmp = strrchr(p->name, PATH_CHAR)) ) {
-				diff = tmp - p->name;
-				if ( ( tmp = (char *) malloc( diff + 1 ) ) == nil ) mem_err();
+		p = create;
+		while (!err && p != nil) {
+			diff = 0;
+			if ( p->name && (buf = strrchr(p->name, PATH_CHAR)) ) {
+				diff = buf - p->name;
+				if ( ( buf = (char *) malloc( diff + 1 ) ) == nil ) mem_err();
 				if ( ! err ) {
-					strncpy( tmp, p->name, diff );
-					tmp[ diff ] = 0;
+					strncpy( buf, p->name, diff );
+					buf[ diff ] = 0;
 				}
 				diff += 1;
 			}
 			
-			if ( ! err ) err = create_xiso( p->path, tmp, nil, -1, nil, p->name ? p->name + diff : nil, nil );
+			if ( ! err ) err = create_xiso( p->path, buf, nil, -1, nil, p->name ? p->name + diff : nil, nil );
 
-			if ( tmp ) free( tmp );
+			if (buf) { free(buf); buf = nil; }
 
 			q = p->next;
 
 			if ( p->name ) free( p->name );
-			free( p->path );
+			if ( p->path ) free( p->path );
 			free( p );
 			
 			p = q;
@@ -788,43 +789,42 @@ int main( int argc, char **argv ) {
 	} else for ( i = optind; ! err && i < argc; ++i ) {
 		++isos;
 		s_total_bytes = s_total_files = 0;
+		optimized = false;
 		
-		
-		if ( ! err ) {
-			optimized = false;
-		
-			if ( ( fd = open( argv[ i ], READFLAGS, 0 ) ) == -1 ) open_err( argv[ i ] );
-			if ( ! err && lseek_with_error( fd, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
-			if ( ! err && read( fd, tag, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) read_err();
+		if ( ( fd = open( argv[ i ], READFLAGS, 0 ) ) == -1 ) open_err( argv[ i ] );
+		if ( ! err && lseek_with_error( fd, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
+		if ( ! err && read( fd, tag, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) read_err();
 			
-			if ( fd != -1 ) close( fd );
+		if ( fd != -1 ) close( fd );
 
-			if ( ! err ) {
-				tag[ XISO_OPTIMIZED_TAG_LENGTH ] = 0;
+		if ( ! err ) {
+			tag[ XISO_OPTIMIZED_TAG_LENGTH ] = 0;
 
-				if ( ! strncmp( tag, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH_MIN ) ) optimized = true;
+			if ( ! strncmp( tag, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH_MIN ) ) optimized = true;
 
-				if ( rewrite ) {
-					if ( optimized ) {
-						exiso_log( "\n%s is already optimized, skipping...\n", argv[ i ] );
-						continue;
-					}
-
-					if ( ! err ) {
-						if (asprintf(&buf, "%s.old", argv[i]) == -1) mem_err();
-						if ( ! err && stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s", buf, argv[ i ] );
-						if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s", argv[ i ], buf );
-						
-						if ( err ) { err = 0; if ( buf ) free( buf ); continue; }
-					}
-					if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path );
-					if ( ! err && delete && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s", buf );
-					
-					if ( buf ) free( buf );
-				} else {
-					// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
-					if ( ! err ) err = decode_xiso( argv[ i ], extract ? path : nil, extract ? k_extract : k_list, nil );
+			if ( rewrite ) {
+				if ( optimized ) {
+					exiso_log( "\n%s is already optimized, skipping...\n", argv[ i ] );
+					continue;
 				}
+
+				if (asprintf(&buf, "%s.old", argv[i]) == -1) mem_err();
+				if ( ! err && stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s", buf, argv[ i ] );
+				if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s", argv[ i ], buf );
+
+				if (err) {
+					err = 0;
+					if (buf) { free(buf); buf = nil; }
+					continue;
+				}
+
+				err = decode_xiso(buf, path, k_rewrite, &new_iso_path);
+				if (!err && delete && unlink(buf) == -1) log_err(__FILE__, __LINE__, "unable to delete %s", buf);
+
+				if (buf) { free(buf); buf = nil; }
+			} else {
+				// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
+				err = decode_xiso( argv[ i ], extract ? path : nil, extract ? k_extract : k_list, nil );
 			}
 		}
 		
