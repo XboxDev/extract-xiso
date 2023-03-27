@@ -472,11 +472,12 @@ typedef int64_t							file_time_t;
 
 #define START_LSEEK_OFFSET				0x00000000ul
 #define XGD3_LSEEK_OFFSET				0x02080000ul
-#define GLOBAL_LSEEK_OFFSET				0x0FD90000ul
+#define XGD2_LSEEK_OFFSET				0x0FD90000ul
 #define XGD1_LSEEK_OFFSET				0x18300000ul
-#define LSEEK_OFFSETS_LEN				4
+#define XGD2_ALT_LSEEK_OFFSET			0x89D80000ul
+#define LSEEK_OFFSETS_LEN				5
 /* The offsets should be in ascending order, otherwise we could get a seek error before checking the correct one */
-xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET, GLOBAL_LSEEK_OFFSET, XGD1_LSEEK_OFFSET};
+xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET, XGD2_LSEEK_OFFSET, XGD1_LSEEK_OFFSET, XGD2_ALT_LSEEK_OFFSET};
 
 #define	XISO_HEADER_DATA				"MICROSOFT*XBOX*MEDIA"
 #define XISO_HEADER_DATA_LENGTH			20
