@@ -9,7 +9,7 @@ set(SOURCE_FILES
 
 if(MSVC)
     set(CMAKE_C_FLAGS_RELEASE_INIT "/O2")
-    add_compile_options(/W4)
+    add_compile_options(/W4 /utf-8)
     add_compile_options("$<$<CONFIG:DEBUG>:/DDEBUG=1>")
     add_definitions(-D_CRT_NONSTDC_NO_WARNINGS) # POSIX function names
     add_definitions(-D_CRT_SECURE_NO_WARNINGS)  # Unsafe CRT Library functions
