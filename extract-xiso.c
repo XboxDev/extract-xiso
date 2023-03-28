@@ -528,7 +528,7 @@ xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET
 #define n_sectors(size)					( (size) / XISO_SECTOR_SIZE + ( (size) % XISO_SECTOR_SIZE ? 1 : 0 ) )
 #define n_dword(offset)					( (offset) / XISO_DWORD_SIZE + ( (offset) % XISO_DWORD_SIZE ? 1 : 0 ) )
 
-#define READWRITE_BUFFER_SIZE			0x00200000
+#define READWRITE_BUFFER_SIZE			0x00200000ul	// Must be at least XISO_HEADER_OFFSET
 
 #define DEBUG_DUMP_DIRECTORY			"/Volumes/c/xbox/iso/exiso"
 
@@ -758,7 +758,7 @@ int main( int argc, char **argv ) {
 	
 		exiso_log(banner);
 	
-		if ( ( extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nil ) mem_err();
+		if ((extract || rewrite || create) && (s_copy_buffer = (char*)malloc(READWRITE_BUFFER_SIZE)) == nil) mem_err();
 
 		setlocale(LC_ALL, ".utf8");
 	}
@@ -991,7 +991,7 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
 	int						i = 0, n = 0, xiso = -1, err = 0;
-	char				   *cwd = nil, *buf = nil, *iso_name = nil, *xiso_path = nil, *iso_dir = nil, *real_path = nil;
+	char				   *cwd = nil, *iso_name = nil, *xiso_path = nil, *iso_dir = nil, *real_path = nil;
 
 	s_total_bytes = s_total_files = 0;
 
@@ -1057,7 +1057,6 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 		avl_traverse_depth_first( &root, (traversal_callback) calculate_directory_requirements, nil, k_prefix, 0 );
 		avl_traverse_depth_first( &root, (traversal_callback) calculate_directory_offsets, &start_sector, k_prefix, 0 );
 	}
-	if ( ! err && ( buf = (char *) malloc( n = max( READWRITE_BUFFER_SIZE, XISO_HEADER_OFFSET ) ) ) == nil ) mem_err();
 	if ( ! err ) {
 		if ( ( xiso = open( xiso_path, WRITEFLAGS, 0644 ) ) == -1 ) open_err( xiso_path );
 		if (out_iso_path) *out_iso_path = xiso_path;
@@ -1067,8 +1066,8 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 		}
 	}
 	if ( ! err ) {
-		memset( buf, 0, n );
-		if ( write( xiso, buf, XISO_HEADER_OFFSET ) != XISO_HEADER_OFFSET ) write_err();
+		memset(s_copy_buffer, 0, XISO_HEADER_OFFSET);
+		if ( write( xiso, s_copy_buffer, XISO_HEADER_OFFSET ) != XISO_HEADER_OFFSET ) write_err();
 	}
 	if ( ! err && write( xiso, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) write_err();
 	if ( ! err ) {
@@ -1084,16 +1083,15 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	if ( ! err ) {
 		if ( in_root ) {
 			if (lseek_with_error(in_xiso, (xoff_t)XISO_HEADER_OFFSET + XISO_HEADER_DATA_LENGTH + XISO_SECTOR_OFFSET_SIZE + XISO_DIRTABLE_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
-			if ( ! err && read( in_xiso, buf, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) read_err();
-			if ( ! err && write( xiso, buf, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();			
-
-			memset( buf, 0, XISO_FILETIME_SIZE );
+			if ( ! err && read( in_xiso, s_copy_buffer, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) read_err();
+			if ( ! err && write( xiso, s_copy_buffer, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
 		} else {
 			if ( ( err = get_filetime_now(&ft) ) ) misc_err("cannot get current time");
 			if ( ! err && write( xiso, &ft, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
 		}
 	}
-	if ( ! err && write( xiso, buf, XISO_UNUSED_SIZE ) != XISO_UNUSED_SIZE ) write_err();
+	memset(s_copy_buffer, 0, XISO_UNUSED_SIZE);
+	if ( ! err && write( xiso, s_copy_buffer, XISO_UNUSED_SIZE ) != XISO_UNUSED_SIZE ) write_err();
 	if ( ! err && write( xiso, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) write_err();
 	
 	if ( ! err && ! in_root ) {
@@ -1115,7 +1113,8 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	if ( ! err && ( pos = lseek( xiso, (xoff_t) 0, SEEK_END ) ) == -1 ) seek_err();
 	if (!err) {
 		i = (int)((XISO_FILE_MODULUS - pos % XISO_FILE_MODULUS) % XISO_FILE_MODULUS);
-		if (write(xiso, buf, i) != i) write_err();
+		memset(s_copy_buffer, 0, i);
+		if (write(xiso, s_copy_buffer, i) != i) write_err();
 	}
 
 	if ( ! err ) err = write_volume_descriptors( xiso, (uint32_t)((pos + (xoff_t)i) / XISO_SECTOR_SIZE) );
@@ -1137,7 +1136,6 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	
 	if (root.filename_utf8) free(root.filename_utf8);
 	if (root.filename) free(root.filename);
-	if (buf) free(buf);
 
 	if ( cwd ) {
 		if ( chdir( cwd ) == -1 ) chdir_err( cwd );
@@ -1738,7 +1736,6 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 	xoff_t					pos = 0, dir_start = (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE;
 	write_tree_context		context = { 0 };
 	int						err = 0, pad = 0;
-	char					sector[XISO_SECTOR_SIZE];
 
 	if (in_avl->attributes & XISO_ATTRIBUTE_DIR) {
 		if (asprintf(&context.path, "%s%s%c", in_context->path ? in_context->path : "", in_context->path ? in_avl->filename_utf8 : "", PATH_CHAR) == -1) mem_err();
@@ -1764,17 +1761,17 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 				if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
 				if (!err) {
 					pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE);
-					memset(sector, XISO_PAD_BYTE, pad);
-					if (write(in_context->xiso, sector, pad) != pad) write_err();
+					memset(s_copy_buffer, XISO_PAD_BYTE, pad);
+					if (write(in_context->xiso, s_copy_buffer, pad) != pad) write_err();
 				}
 
 				if ( ! err && in_context->from == -1 ) {
 					if ( chdir( ".." ) == -1 ) chdir_err( ".." );
 				}
 			} else {
-				memset(sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE);
+				memset(s_copy_buffer, XISO_PAD_BYTE, XISO_SECTOR_SIZE);
 				if ((pos = lseek(in_context->xiso, dir_start, SEEK_SET)) == -1) seek_err();
-				if (!err && write(in_context->xiso, sector, XISO_SECTOR_SIZE) != XISO_SECTOR_SIZE) write_err();
+				if (!err && write(in_context->xiso, s_copy_buffer, XISO_SECTOR_SIZE) != XISO_SECTOR_SIZE) write_err();
 			}
 		}
 
@@ -1786,8 +1783,8 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 
 
 int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int in_depth ) {
-	char		   *buf = nil, *p = nil;
-	uint32_t		bytes = 0, size = max(XISO_SECTOR_SIZE, READWRITE_BUFFER_SIZE);
+	char			*p = nil;
+	uint32_t		bytes = 0, size = 0;
 	int				err = 0, fd = -1, n = 0, i = 0;
 	size_t			len;
 	bool			xbe_file;
@@ -1795,7 +1792,6 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 	if (!(in_avl->attributes & XISO_ATTRIBUTE_DIR)) {
 		if ( lseek( in_context->xiso, (xoff_t) in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 		
-		if ( ! err && ( buf = (char *) malloc( (size_t)size + 1 ) ) == nil ) mem_err();
 		if ( ! err ) {
 			if ( in_context->from == -1 ) {
 				if ( ( fd = open( in_avl->filename_utf8, READFLAGS, 0 ) ) == -1 ) open_err(in_avl->filename_utf8);
@@ -1811,23 +1807,23 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 			len = strlen(in_avl->filename);	// Use Windows-1252 name here
 			xbe_file = len >= 4 && strcasecmp(&in_avl->filename[len - 4], ".xbe") == 0;
 			do {
-				n = read(fd, buf + i, min(bytes, size - i));
+				n = read(fd, s_copy_buffer + i, min(bytes, READWRITE_BUFFER_SIZE - i));
 				if (n < 0) read_err();
 				else if (n == 0) {	// Unexpected end of file
-					if (i > 0 && write(in_context->xiso, buf, i) != i) write_err();	// Write remaining 'i' bytes
+					if (i > 0 && write(in_context->xiso, s_copy_buffer, i) != i) write_err();	// Write remaining 'i' bytes
 				}
 				else {
 					bytes -= n;
 					if (s_media_enable && xbe_file) {
 						n += i;
-						for (buf[n] = 0, p = buf; (p = boyer_moore_search(p, n - (long)(p - buf))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
+						for (p = s_copy_buffer; (p = boyer_moore_search(p, n - (long)(p - s_copy_buffer))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
 						if (bytes) {
 							i = XISO_MEDIA_ENABLE_LENGTH - 1;
 							n -= i;
 						}
 					}
-					if (write(in_context->xiso, buf, n) != n) write_err();
-					if (!err && s_media_enable && xbe_file && bytes) memcpy(buf, &buf[n], i);
+					if (write(in_context->xiso, s_copy_buffer, n) != n) write_err();
+					if (!err && s_media_enable && xbe_file && bytes) memcpy(s_copy_buffer, &s_copy_buffer[n], i);
 				}
 			} while (!err && bytes > 0 && n > 0);
 			size = in_avl->file_size;
@@ -1836,8 +1832,8 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 			if (!err) {
 				i = (XISO_SECTOR_SIZE - (in_avl->file_size % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE;
 				if (i > 0) {
-					memset(buf, XISO_PAD_BYTE, i);
-					if (write(in_context->xiso, buf, i) != i) write_err();
+					memset(s_copy_buffer, XISO_PAD_BYTE, i);
+					if (write(in_context->xiso, s_copy_buffer, i) != i) write_err();
 				}
 			}
 			exiso_log(err ? "failed" : "[OK]");
@@ -1852,7 +1848,6 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 		}
 		
 		if ( in_context->from == -1 && fd != -1 ) close( fd );
-		if ( buf ) free( buf );
 	}
 	
 	return err;
@@ -1864,7 +1859,6 @@ int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, unuse
 	uint16_t	l_offset, r_offset;
 	uint32_t	file_size = (in_avl->attributes & XISO_ATTRIBUTE_DIR) ? n_sectors(in_avl->file_size) * XISO_SECTOR_SIZE : in_avl->file_size;
 	uint8_t		length = (uint8_t)strlen(in_avl->filename);
-	char		sector[XISO_SECTOR_SIZE];
 	int			err = 0, pad = 0;
 		
 	little32( in_avl->file_size );
@@ -1876,11 +1870,11 @@ int write_directory( dir_node_avl *in_avl, write_tree_context* in_context, unuse
 	little16( l_offset );
 	little16( r_offset );
 	
-	memset( sector, XISO_PAD_BYTE, XISO_SECTOR_SIZE );
+	memset(s_copy_buffer, XISO_PAD_BYTE, XISO_SECTOR_SIZE);
 	
 	if ( ( pos = lseek( in_context->xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
 	if ( ! err ) pad = (int)((xoff_t)in_avl->offset + in_avl->dir_start - pos);
-	if ( ! err && write( in_context->xiso, sector, pad ) != pad ) write_err();
+	if ( ! err && write( in_context->xiso, s_copy_buffer, pad ) != pad ) write_err();
 	if ( ! err && write( in_context->xiso, &l_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
 	if ( ! err && write( in_context->xiso, &r_offset, XISO_TABLE_OFFSET_SIZE ) != XISO_TABLE_OFFSET_SIZE ) write_err();
 	if ( ! err && write( in_context->xiso, &in_avl->start_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) write_err();
