@@ -1330,13 +1330,13 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		// Recurse on left node
 		if (!err && l_offset) {
 			if (lseek_with_error(in_xiso, in_dir_start + (xoff_t)l_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
-			if (!err) err = traverse_xiso(in_xiso, in_dir_start, l_offset, end_offset, in_path, in_mode, &avl, strategy);
+			if (!err) err = traverse_xiso(in_xiso, in_dir_start, l_offset, end_offset, in_path, in_mode, in_root, strategy);
 		}
 
 		// Recurse on right node
 		if (!err && r_offset) {
 			if (lseek_with_error(in_xiso, in_dir_start + (xoff_t)r_offset * XISO_DWORD_SIZE, SEEK_SET) == -1) seek_err();
-			if (!err) err = traverse_xiso(in_xiso, in_dir_start, r_offset, end_offset, in_path, in_mode, &avl, strategy);
+			if (!err) err = traverse_xiso(in_xiso, in_dir_start, r_offset, end_offset, in_path, in_mode, in_root, strategy);
 		}
 	}
 
@@ -1443,7 +1443,7 @@ avl_result avl_insert( dir_node_avl **in_root, dir_node_avl *in_node ) {
 
 avl_result avl_left_grown( dir_node_avl **in_root ) {
 	switch ( (*in_root)->skew ) {
-		case k_left_skew: {
+		case k_left_skew:
 			if ( (*in_root)->left->skew == k_left_skew ) {
 				(*in_root)->skew = (*in_root)->left->skew = k_no_skew;
 				avl_rotate_right( in_root );
@@ -1468,26 +1468,21 @@ avl_result avl_left_grown( dir_node_avl **in_root ) {
 				avl_rotate_left( &(*in_root)->left );
 				avl_rotate_right( in_root );
 			}
-		} return no_err;
+			return no_err;
 		
-		case k_right_skew: {
+		case k_right_skew:
 			(*in_root)->skew = k_no_skew;
-		} return no_err;
+			return no_err;
 		
-		default: {
-			(*in_root)->skew = k_left_skew;
-		} return k_avl_balanced;
+		default:
+			return k_avl_balanced;
 	}
 }
 
 
 avl_result avl_right_grown( dir_node_avl **in_root ) {
 	switch ( (*in_root)->skew ) {
-		case k_left_skew: {
-			(*in_root)->skew = k_no_skew;
-		} return no_err;
-		
-		case k_right_skew: {
+		case k_right_skew:
 			if ( (*in_root)->right->skew == k_right_skew ) {
 				(*in_root)->skew = (*in_root)->right->skew = k_no_skew;
 				avl_rotate_left( in_root );
@@ -1512,11 +1507,14 @@ avl_result avl_right_grown( dir_node_avl **in_root ) {
 				avl_rotate_right( &(*in_root)->right );
 				avl_rotate_left( in_root );
 			}
-		} return no_err;
+			return no_err;
+
+		case k_left_skew:
+			(*in_root)->skew = k_no_skew;
+			return no_err;
 		
-		default: {
-			(*in_root)->skew = k_right_skew;
-		} return k_avl_balanced;
+		default:
+			return k_avl_balanced;
 	}
 }
 
