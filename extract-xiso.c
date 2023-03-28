@@ -1538,11 +1538,11 @@ void avl_rotate_right( dir_node_avl **in_root ) {
 
 
 int avl_compare_key( const char *in_lhs, const char *in_rhs ) {
-	char			a, b;
+	unsigned char		a, b;
 
 	for ( ;; ) {
-		a = *in_lhs++;
-		b = *in_rhs++;
+		a = (unsigned char)*in_lhs++;
+		b = (unsigned char)*in_rhs++;
 		
 		if ( a >= 'a' && a <= 'z' ) a -= 32;	// uppercase(a);
 		if ( b >= 'a' && b <= 'z' ) b -= 32;	// uppercase(b);
