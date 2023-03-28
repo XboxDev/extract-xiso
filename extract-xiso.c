@@ -1309,12 +1309,18 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 					avl->file_size = node->file_size;
 					avl->old_start_sector = node->start_sector;
 					avl->attributes = node->attributes;
-					if (avl_insert(in_root, avl) == k_avl_error) {	// Insert node in tree
-						// If we're discovering files outside trees, we don't care about avl_insert errors,
-						// since they represent nodes already discovered before, and we don't want to process them again
-						if (strategy != discover_strategy) misc_err("this iso appears to be corrupt");
+					if (avl_insert(in_root, avl) != k_avl_error) {	// Insert node in tree
+						err = process_node(in_xiso, node, in_path, in_mode, &avl->subdirectory, strategy);
+					} else if (strategy == discover_strategy) {
+						// If we're discovering files outside trees, we don't care about avl_insert errors, since
+						// they represent nodes already discovered before, and we don't want to process them again.
+						// We just free some memory previously allocated
+						free(avl->filename_utf8);
+						free(avl->filename);
+						node->filename = nil;
+						free(avl);
 					}
-					else err = process_node(in_xiso, node, in_path, in_mode, &avl->subdirectory, strategy);
+					else misc_err("this iso appears to be corrupt");	// When not discovering, a duplicate node is an error
 				}
 			}
 			else err = process_node(in_xiso, node, in_path, in_mode, nil, strategy);
