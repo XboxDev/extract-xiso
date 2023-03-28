@@ -1243,7 +1243,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 	dir_node		*node = nil;
 	uint16_t		l_offset = 0, r_offset = 0;
 	int				err = 0;
-	char			buf[XISO_FILENAME_MAX_CHARS + 1];
+	char			*filename = nil;
 
 	if (entry_offset >= end_offset) misc_err("attempt to read node entry beyond directory end");
 
@@ -1280,18 +1280,22 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 			little16(r_offset);
 			little32(node->file_size);
 			little32(node->start_sector);
-
-			if (read(in_xiso, &buf, node->filename_length) != node->filename_length) read_err();
+			if ((filename = malloc((size_t)node->filename_length + 1)) == nil) mem_err();
+			if (!err && read(in_xiso, filename, node->filename_length) != node->filename_length) read_err();
 			if (!err) {
-				buf[node->filename_length] = '\0';
+				filename[node->filename_length] = '\0';
 
 				// security patch (Chris Bainbridge), modified by in to support "...", etc. 02.14.06 (in)
-				if (!strcmp(buf, ".") || !strcmp(buf, "..") || strchr(buf, '/') || strchr(buf, '\\')) {
-					log_err(__FILE__, __LINE__, "filename '%s' contains invalid character(s), aborting.", buf);
+				if (!strcmp(filename, ".") || !strcmp(filename, "..") || strchr(filename, '/') || strchr(filename, '\\')) {
+					log_err(__FILE__, __LINE__, "filename '%s' contains invalid character(s), aborting.", filename);
 					exit(1);
 				}
 
-				if ((node->filename = getUTF8String(buf)) == nil) mem_err();
+				if ((node->filename = getUTF8String(filename)) == nil) mem_err();
+			}
+			if (filename && in_mode != k_generate_avl) {	// If 'in_mode' is 'k_generate_avl', we copy filename to avl->filename
+				free(filename);
+				filename = nil;
 			}
 		}
 
@@ -1299,9 +1303,9 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		if (!err) {
 			if (in_mode == k_generate_avl) {
 				if ((avl = (dir_node_avl*)calloc(1, sizeof(dir_node_avl))) == nil) mem_err();
-				if (!err) if ((avl->filename_utf8 = getUTF8String(buf)) == nil) mem_err();
-				if (!err) if ((avl->filename = strdup(buf)) == nil) mem_err();
 				if (!err) {
+					avl->filename_utf8 = node->filename;	// Remember to not free node->filename yet
+					avl->filename = filename;
 					avl->file_size = node->file_size;
 					avl->old_start_sector = node->start_sector;
 					avl->attributes = node->attributes;
@@ -1321,7 +1325,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 
 		// Free memory before recurring or iterating
 		if (node) {
-			if (node->filename) free(node->filename);
+			if (node->filename && in_mode != k_generate_avl) free(node->filename);	// We copied node->filename in avl->filename_utf8 if 'in_mode' was 'k_generate_avl'
 			free(node);
 		}
 
@@ -2021,7 +2025,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 			}
 		}
 		if ( ! err ) {
-			if ( avl_insert( out_root, avl ) == k_avl_error ) misc_err( "error inserting file %s into tree (duplicate filename?)", avl->filename );
+			if ( avl_insert( out_root, avl ) == k_avl_error ) misc_err( "error inserting file %s into tree (duplicate filename?)", avl->filename_utf8 );
 		} else {
 			if ( avl ) {
 				if (avl->filename_utf8) free(avl->filename_utf8);
