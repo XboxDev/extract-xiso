@@ -743,23 +743,17 @@ int main( int argc, char **argv ) {
 	
 		if ((extract || rewrite || create) && (s_copy_buffer = (char*)malloc(READWRITE_BUFFER_SIZE)) == NULL) mem_err();
 
+	}
+
+	if (!err) {
 		locale_arr = cp1252_locales;
-		while (*locale_arr) {
-			locale = setlocale(LC_ALL, *locale_arr);
-			if (locale) break;
-			locale_arr++;
-		}
+		while (*locale_arr && !locale) locale = setlocale(LC_ALL, *locale_arr++);
 		if (locale) s_cp1252 = true;
 		else {
 			locale_arr = utf8_locales;
-			while (*locale_arr) {
-				locale = setlocale(LC_ALL, *locale_arr);
-				if (locale) break;
-				locale_arr++;
-			}
+			while (*locale_arr && !locale) locale = setlocale(LC_ALL, *locale_arr++);
 			if (!locale) exiso_warn("Using %s locale. Non-ASCII characters will probably not be represented correctly.", setlocale(LC_ALL, NULL));
 		}
-
 	}
 	
 	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
