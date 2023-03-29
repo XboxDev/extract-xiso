@@ -268,6 +268,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <string.h>
 #include <inttypes.h>
 #include <locale.h>
@@ -425,12 +426,6 @@
 #define DEBUG_VERIFY_XISO				0
 #define DEBUG_OPTIMIZE_XISO				0
 #define DEBUG_TRAVERSE_XISO_DIR			0
-
-
-#if ! defined( __cplusplus ) && ! defined( bool )
-	typedef int bool;
-	enum { false, true };
-#endif
 
 typedef int64_t							file_time_t;
 
