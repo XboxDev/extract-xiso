@@ -4,12 +4,14 @@
 #include <stdint.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <stdbool.h>
+#include <string.h>
 
 uint32_t getUnicodeFromCP1252(char input);
 char getCP1252FromUnicode(uint32_t input);
 int getUTF8CodePointSize(uint32_t input);
 char* getUTF8Sequence(uint32_t input, char* buf);
-size_t strcplen(const char* buf);
+size_t strcplen(const char* buf, bool utf8);
 const char* getCodePointFromUTF8Sequence(const char* buf, uint32_t* out);
 char* getUTF8String(const char* input);
 char* getCP1252String(const char* input);
@@ -188,9 +190,10 @@ char* getUTF8Sequence(uint32_t input, char* buf) {
 	return buf;
 }
 
-size_t strcplen(const char* buf) {
+size_t strcplen(const char* buf, bool utf8) {
 	unsigned char c;
 	size_t count = 0;
+	if (!utf8) return strlen(buf);
 	while (buf[0] != '\0') {
 		c = (unsigned char)buf[0];
 		count += 1;
@@ -258,7 +261,7 @@ char* getUTF8String(const char* input) {
 }
 
 char* getCP1252String(const char* input) {
-	size_t len = strcplen(input);
+	size_t len = strcplen(input, true);
 	char* ret = malloc(len + 1);
 	if (!ret) return NULL;
 	char* p = ret;
