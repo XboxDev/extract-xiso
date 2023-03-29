@@ -382,11 +382,7 @@
 	typedef	off_t						xoff_t;
 #endif
 
-#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__)	/* All BSD systems, but this macro is unused anyways */
-	#define FORCE_ASCII					1
-#else
-	#define FORCE_ASCII					0
-#endif
+typedef int64_t							file_time_t;
 
 #if CHAR_BIT != 8
 	#error unsupported char size, cannot compile!
@@ -422,17 +418,10 @@
 	#define little64(n)
 #endif
 
-
-#define DEBUG_VERIFY_XISO				0
-#define DEBUG_OPTIMIZE_XISO				0
-#define DEBUG_TRAVERSE_XISO_DIR			0
-
-typedef int64_t							file_time_t;
-
-#ifndef nil
-	#define nil							0
+#ifndef min
+	#define min(a, b)					( (a) < (b) ? (a) : (b) )
+	#define max(a, b)					( (a) > (b) ? (a) : (b) )
 #endif
-
 
 #define exiso_version					"2.7.1 (01.11.14)"
 #define VERSION_LENGTH					16
@@ -459,12 +448,6 @@ typedef int64_t							file_time_t;
 #define rchdir_err( in_dir )			do{ log_err( __FILE__, __LINE__, "unable to change to remote directory %s", ( in_dir ) ); err = 1; } while(0)
 #define rmkdir_err( in_dir )			do{ log_err( __FILE__, __LINE__, "unable to create remote directory %s", ( in_dir ) ); err = 1; } while(0)
 #define misc_err( ... )					do{ log_err( __FILE__, __LINE__, __VA_ARGS__ ); err = 1; } while(0)
-
-
-#ifndef min
-	#define min( a , b )				( ( a ) < ( b ) ? ( a ) : ( b ) )
-	#define max( a , b )				( ( a ) > ( b ) ? ( a ) : ( b ) )
-#endif
 
 
 #define START_LSEEK_OFFSET				0x00000000ul
@@ -529,8 +512,8 @@ xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET
 
 #define GETOPT_STRING					"c:d:Dhlmp:qQrsvx"
 
-char* cp1252_locales[] = { ".1252" /* Windows */, "C.CP1252", "en_US.CP1252", "de_DE.CP1252", nil };
-char* utf8_locales[] = { ".UTF-8" /* Windows */, "C.UTF-8", "en_US.UTF-8", nil };
+char* cp1252_locales[] = { ".1252" /* Windows */, "C.CP1252", "en_US.CP1252", "de_DE.CP1252", NULL };
+char* utf8_locales[] = { ".UTF-8" /* Windows */, "C.UTF-8", "en_US.UTF-8", NULL };
 
 
 typedef enum avl_skew { k_no_skew , k_left_skew , k_right_skew } avl_skew;
@@ -641,12 +624,12 @@ void write_sector( int in_xiso, xoff_t in_start, const char *in_name, const char
 
 static long								s_pat_len;
 static bool								s_quiet = false;
-static const char					   *s_pattern = nil;
-static long							   *s_gs_table = nil;
-static long							   *s_bc_table = nil;
+static const char					   *s_pattern = NULL;
+static long							   *s_gs_table = NULL;
+static long							   *s_bc_table = NULL;
 static long long						s_total_bytes = 0;
 static int								s_total_files = 0;
-static char							   *s_copy_buffer = nil;
+static char							   *s_copy_buffer = NULL;
 static bool								s_real_quiet = false;
 static bool								s_media_enable = true;
 static long long						s_total_bytes_all_isos = 0;
@@ -667,11 +650,11 @@ static xoff_t							s_xbox_disc_lseek = 0;
 
 int main( int argc, char **argv ) {
 	struct stat		sb;
-	create_list		*create = nil, *p, *q;
+	create_list		*create = NULL, *p, *q;
 	int				i, fd, opt_char, err = 0, isos = 0;
 	bool			extract = true, rewrite = false, x_seen = false, delete = false, optimized;
 	ptrdiff_t		diff;
-	char			*path = nil, *buf = nil, *new_iso_path = nil, *locale = nil, **locale_arr = nil;
+	char			*path = NULL, *buf = NULL, *new_iso_path = NULL, *locale = NULL, **locale_arr = NULL;
 	char			tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
 
 	if (argc < 2) usage_and_exit(1);
@@ -681,21 +664,21 @@ int main( int argc, char **argv ) {
 			case 'c': {
 				if (x_seen || rewrite || !extract) usage_and_exit(1);
 
-				if (create == nil) {
-					if ((p = create = (create_list*)calloc(1, sizeof(create_list))) == nil) mem_err();
+				if (create == NULL) {
+					if ((p = create = (create_list*)calloc(1, sizeof(create_list))) == NULL) mem_err();
 				}
 				else {
 					p = create;
-					while (p != nil && p->next != nil) p = p->next;
-					if ((p = p->next = (create_list*)calloc(1, sizeof(create_list))) == nil) mem_err();
+					while (p != NULL && p->next != NULL) p = p->next;
+					if ((p = p->next = (create_list*)calloc(1, sizeof(create_list))) == NULL) mem_err();
 				}
-				if (!err && (p->path = strdup(optarg)) == nil) mem_err();
-				if (!err && argv[optind] && *argv[optind] != '-' && *argv[optind] && (p->name = strdup(argv[optind++])) == nil) mem_err();
+				if (!err && (p->path = strdup(optarg)) == NULL) mem_err();
+				if (!err && argv[optind] && *argv[optind] != '-' && *argv[optind] && (p->name = strdup(argv[optind++])) == NULL) mem_err();
 			} break;
 			
 			case 'd': {
 				if ( path ) free( path );
-				if ( ( path = strdup( optarg ) ) == nil ) mem_err();
+				if ( ( path = strdup( optarg ) ) == NULL ) mem_err();
 			} break;
 			
 			case 'D': {
@@ -758,7 +741,7 @@ int main( int argc, char **argv ) {
 	
 		exiso_log(banner);
 	
-		if ((extract || rewrite || create) && (s_copy_buffer = (char*)malloc(READWRITE_BUFFER_SIZE)) == nil) mem_err();
+		if ((extract || rewrite || create) && (s_copy_buffer = (char*)malloc(READWRITE_BUFFER_SIZE)) == NULL) mem_err();
 
 		locale_arr = cp1252_locales;
 		while (*locale_arr) {
@@ -783,11 +766,11 @@ int main( int argc, char **argv ) {
 
 	if ( ! err && create ) {
 		p = create;
-		while (!err && p != nil) {
+		while (!err && p != NULL) {
 			diff = 0;
 			if ( p->name && (buf = strrchr(p->name, PATH_CHAR)) ) {
 				diff = buf - p->name;
-				if ( ( buf = (char *) malloc( diff + 1 ) ) == nil ) mem_err();
+				if ( ( buf = (char *) malloc( diff + 1 ) ) == NULL ) mem_err();
 				if ( ! err ) {
 					strncpy( buf, p->name, diff );
 					buf[ diff ] = 0;
@@ -795,9 +778,9 @@ int main( int argc, char **argv ) {
 				diff += 1;
 			}
 			
-			if ( ! err ) err = create_xiso( p->path, buf, nil, -1, nil, p->name ? p->name + diff : nil, nil );
+			if ( ! err ) err = create_xiso( p->path, buf, NULL, -1, NULL, p->name ? p->name + diff : NULL, NULL );
 
-			if (buf) { free(buf); buf = nil; }
+			if (buf) { free(buf); buf = NULL; }
 
 			q = p->next;
 
@@ -835,17 +818,17 @@ int main( int argc, char **argv ) {
 
 				if (err) {
 					err = 0;
-					if (buf) { free(buf); buf = nil; }
+					if (buf) { free(buf); buf = NULL; }
 					continue;
 				}
 
 				err = decode_xiso(buf, path, k_rewrite, &new_iso_path);
 				if (!err && delete && unlink(buf) == -1) log_err(__FILE__, __LINE__, "unable to delete %s", buf);
 
-				if (buf) { free(buf); buf = nil; }
+				if (buf) { free(buf); buf = NULL; }
 			} else {
 				// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
-				err = decode_xiso( argv[ i ], extract ? path : nil, extract ? k_extract : k_list, nil );
+				err = decode_xiso( argv[ i ], extract ? path : NULL, extract ? k_extract : k_list, NULL );
 			}
 		}
 		
@@ -859,7 +842,7 @@ int main( int argc, char **argv ) {
 			if ( ! err ) exiso_log( "\n%s successfully rewritten%s%s\n", argv[ i ], path ? " as " : ".", path ? new_iso_path : "" );
 		
 			free( new_iso_path );
-			new_iso_path = nil;
+			new_iso_path = NULL;
 		}
 		
 		if ( err == err_iso_no_files ) err = 0;
@@ -1007,11 +990,11 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
 	int						i = 0, n = 0, xiso = -1, err = 0;
-	char				   *cwd = nil, *iso_name = nil, *xiso_path = nil, *iso_dir = nil, *real_path = nil;
+	char				   *cwd = NULL, *iso_name = NULL, *xiso_path = NULL, *iso_dir = NULL, *real_path = NULL;
 
 	s_total_bytes = s_total_files = 0;
 
-	if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
+	if ( ( cwd = getcwd( NULL, 0 ) ) == NULL ) mem_err();
 	if ( ! err ) {
 		if ( ! in_root ) {
 			i = (int)strlen(in_root_directory) - 1;
@@ -1028,11 +1011,11 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 		if ( ! *iso_dir ) iso_dir = PATH_CHAR_STR;
 		if ( ! iso_name || ! *iso_name ) iso_name = "root";
 		else if ( iso_name[ 1 ] == ':' ) { iso_name[ 1 ] = iso_name[ 0 ]; ++iso_name; }
-		if (!err && (real_path = realpath(in_output_directory ? in_output_directory : ".", nil)) == nil) misc_err("unable to get absolute path of %s: %s", real_path, strerror(errno));
+		if (!err && (real_path = realpath(in_output_directory ? in_output_directory : ".", NULL)) == NULL) misc_err("unable to get absolute path of %s: %s", real_path, strerror(errno));
 		if (!err && (asprintf(&xiso_path, "%s%c%s%s", real_path, PATH_CHAR, iso_name, in_name ? "" : ".iso")) == -1) mem_err();
 		if (real_path) {
 			free(real_path);
-			real_path = nil;
+			real_path = NULL;
 		}
 
 		if (!err && !in_root && chdir(in_root_directory) == -1) chdir_err(in_root_directory);
@@ -1047,7 +1030,7 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 
 		if ( in_root ) {
 			root.subdirectory = in_root;
-			avl_traverse_depth_first( &root, (traversal_callback) calculate_total_files_and_bytes, nil, k_prefix, 0 );
+			avl_traverse_depth_first( &root, (traversal_callback) calculate_total_files_and_bytes, NULL, k_prefix, 0 );
 		} else {
 			n = 0;
 
@@ -1070,7 +1053,7 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 		
 		start_sector = root.start_sector;
 		
-		avl_traverse_depth_first( &root, (traversal_callback) calculate_directory_requirements, nil, k_prefix, 0 );
+		avl_traverse_depth_first( &root, (traversal_callback) calculate_directory_requirements, NULL, k_prefix, 0 );
 		avl_traverse_depth_first( &root, (traversal_callback) calculate_directory_offsets, &start_sector, k_prefix, 0 );
 	}
 	if ( ! err ) {
@@ -1078,7 +1061,7 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 		if (out_iso_path) *out_iso_path = xiso_path;
 		else {
 			free(xiso_path);
-			xiso_path = nil;
+			xiso_path = NULL;
 		}
 	}
 	if ( ! err ) {
@@ -1113,18 +1096,18 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	if ( ! err && ! in_root ) {
 		if ( chdir( ".." ) == -1 ) chdir_err( ".." );
 	}
-	if (!err && (root.filename = strdup(iso_dir)) == nil) mem_err();
+	if (!err && (root.filename = strdup(iso_dir)) == NULL) mem_err();
 	if (!err) {
 		if (s_cp1252) {
 			root.filename_cp1252 = root.filename;
-			root.filename = nil;
+			root.filename = NULL;
 		}
-		else if ((root.filename_cp1252 = getCP1252String(iso_dir)) == nil) mem_err();
+		else if ((root.filename_cp1252 = getCP1252String(iso_dir)) == NULL) mem_err();
 	}
 
 	if ( ! err && lseek( xiso, (xoff_t) root.start_sector * XISO_SECTOR_SIZE, SEEK_SET ) == -1 ) seek_err();
 	if ( ! err ) {
-		wt_context.path = nil;
+		wt_context.path = NULL;
 		wt_context.xiso = xiso;
 		wt_context.from = in_root ? in_xiso : -1;
 		wt_context.progress = in_progress_callback;
@@ -1149,7 +1132,7 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 		else exiso_log( "\n\nsuccessfully created %s%s (%u files totalling %lld bytes added)\n", iso_name ? iso_name : "xiso", iso_name && ! in_name ? ".iso" : "", s_total_files, s_total_bytes );
 	}
 	
-	if ( root.subdirectory ) avl_traverse_depth_first( root.subdirectory, (traversal_callback) free_dir_node_avl, nil, k_postfix, 0 );
+	if ( root.subdirectory ) avl_traverse_depth_first( root.subdirectory, (traversal_callback) free_dir_node_avl, NULL, k_postfix, 0 );
 	
 	if ( xiso != -1 ) {
 		close( xiso );
@@ -1169,13 +1152,13 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 
 
 int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path ) {
-	dir_node_avl		   *root = nil;
+	dir_node_avl		   *root = NULL;
 	xoff_t					root_dir_start;
 	uint32_t				root_dir_sect = 0, root_dir_size = 0;
 	uint16_t				root_end_offset;
 	size_t					len;
 	int						xiso = 0, err = 0;
-	char				   *path = nil, *cwd = nil, *name = nil, *short_name = nil, *iso_name = nil;
+	char				   *path = NULL, *cwd = NULL, *name = NULL, *short_name = NULL, *iso_name = NULL;
 
 	if ((xiso = open(in_xiso, READFLAGS, 0)) == -1) open_err(in_xiso);
 	
@@ -1188,7 +1171,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		// create a directory of the same name as the file we are working on, minus the ".iso" portion
 		if ((len = strlen(name)) >= 4 && strcasecmp(&name[len - 4], ".iso") == 0) {
 			name[len - 4] = '\0';
-			if ((short_name = strdup(name)) == nil) mem_err();
+			if ((short_name = strdup(name)) == NULL) mem_err();
 			name[len - 4] = '.';
 		}
 
@@ -1202,7 +1185,7 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	if (!err && in_mode == k_extract) {
 		if (in_path) {
 			if (strlen(in_path) == 0) misc_err("empty destination path");
-			if (!err && (cwd = getcwd(nil, 0)) == nil) mem_err();
+			if (!err && (cwd = getcwd(NULL, 0)) == NULL) mem_err();
 			if (!err && mkdir(in_path, 0755) == -1) mkdir_err(in_path);
 			if (!err && chdir(in_path) == -1) chdir_err(in_path);
 		}
@@ -1226,16 +1209,16 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 		if (!err && lseek_with_error(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
 		
 		if (in_mode == k_rewrite) {
-			if (!err && root_dir_size == 0) root = nil;
+			if (!err && root_dir_size == 0) root = NULL;
 			else {
 				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, k_generate_avl, &root, tree_strategy);
 				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, k_generate_avl, &root, discover_strategy);
 			}
-			if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, nil, nil);
+			if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, NULL, NULL);
 		}
 		else {
 			exiso_log("\n%s%s (0 bytes)%s", in_mode == k_extract ? "creating\t" : "", path, in_mode == k_extract ? " [OK]" : ""); flush();
-			if (!err && root_dir_size != 0) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, in_mode, nil, discover_strategy);
+			if (!err && root_dir_size != 0) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, in_mode, NULL, discover_strategy);
 		}
 		
 		if(path) free(path);
@@ -1259,11 +1242,11 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 
 
 int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint16_t end_offset, const char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy) {
-	dir_node_avl	*avl = nil;
-	dir_node		*node = nil;
+	dir_node_avl	*avl = NULL;
+	dir_node		*node = NULL;
 	uint16_t		l_offset = 0, r_offset = 0;
 	int				err = 0;
-	char			*filename = nil;
+	char			*filename = NULL;
 
 	if (entry_offset >= end_offset) misc_err("attempt to read node entry beyond directory end");
 
@@ -1273,7 +1256,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		if (!err && read(in_xiso, &l_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
 		if (!err && l_offset == XISO_PAD_SHORT) {
 			if (entry_offset == 0) {	// Empty directories have padding starting at the beginning
-				if (in_mode == k_generate_avl) *in_root = nil;
+				if (in_mode == k_generate_avl) *in_root = NULL;
 				return err;				// Done
 			}
 			else if (strategy != discover_strategy) {			// When discovering, the padding means end of sector
@@ -1286,7 +1269,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		}
 
 		// Read node
-		if (!err) if ((node = calloc(1, sizeof(dir_node))) == nil) mem_err();
+		if (!err) if ((node = calloc(1, sizeof(dir_node))) == NULL) mem_err();
 		if (!err && read(in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
 		if (!err && read(in_xiso, &node->start_sector, XISO_SECTOR_OFFSET_SIZE) != XISO_SECTOR_OFFSET_SIZE) read_err();
 		if (!err && read(in_xiso, &node->file_size, XISO_FILESIZE_SIZE) != XISO_FILESIZE_SIZE) read_err();
@@ -1300,7 +1283,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 			little16(r_offset);
 			little32(node->file_size);
 			little32(node->start_sector);
-			if ((filename = malloc((size_t)node->filename_length + 1)) == nil) mem_err();
+			if ((filename = malloc((size_t)node->filename_length + 1)) == NULL) mem_err();
 			if (!err && read(in_xiso, filename, node->filename_length) != node->filename_length) read_err();
 			if (!err) {
 				filename[node->filename_length] = '\0';
@@ -1313,9 +1296,9 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 
 				if (s_cp1252) {
 					node->filename = filename;
-					filename = nil;
+					filename = NULL;
 				}
-				else if ((node->filename = getUTF8String(filename)) == nil) mem_err();
+				else if ((node->filename = getUTF8String(filename)) == NULL) mem_err();
 			}
 			
 		}
@@ -1323,16 +1306,16 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		// Process the node according to the mode
 		if (!err) {
 			if (in_mode == k_generate_avl) {
-				if ((avl = (dir_node_avl*)calloc(1, sizeof(dir_node_avl))) == nil) mem_err();
+				if ((avl = (dir_node_avl*)calloc(1, sizeof(dir_node_avl))) == NULL) mem_err();
 				if (!err) {
 					if (s_cp1252) {
-						avl->filename = nil;
-						avl->filename_cp1252 = node->filename;	// Don't set node->filename to nil yet
+						avl->filename = NULL;
+						avl->filename_cp1252 = node->filename;	// Don't set node->filename to NULL yet
 					}
 					else {
-						avl->filename = node->filename;			// Don't set node->filename to nil yet
+						avl->filename = node->filename;			// Don't set node->filename to NULL yet
 						avl->filename_cp1252 = filename;
-						filename = nil;
+						filename = NULL;
 					}
 					avl->file_size = node->file_size;
 					avl->old_start_sector = node->start_sector;
@@ -1348,15 +1331,15 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 						free(avl);
 					}
 					else misc_err("this iso appears to be corrupt");	// When not discovering, a duplicate node is an error
-					node->filename = nil;
+					node->filename = NULL;
 				}
 			}
 			else {
 				if (filename) {
 					free(filename);
-					filename = nil;
+					filename = NULL;
 				}
-				err = process_node(in_xiso, node, in_path, in_mode, nil, strategy);
+				err = process_node(in_xiso, node, in_path, in_mode, NULL, strategy);
 			}
 		}
 
@@ -1366,12 +1349,12 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 		// Free memory before recurring or iterating
 		if (filename) {
 			free(filename);
-			filename = nil;
+			filename = NULL;
 		}
 		if (node) {
 			if (node->filename) free(node->filename);
 			free(node);
-			node = nil;
+			node = NULL;
 		}
 
 	} while (!err && entry_offset < end_offset && strategy == discover_strategy);	// Iterate only if using discover_strategy
@@ -1394,7 +1377,7 @@ int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint1
 }
 
 int process_node(int in_xiso, dir_node* node, const char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy) {
-	char		*path = nil;
+	char		*path = NULL;
 	int			err = 0;
 	xoff_t		dir_start = (xoff_t)node->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 	uint16_t	end_offset = 0;
@@ -1419,7 +1402,7 @@ int process_node(int in_xiso, dir_node* node, const char* in_path, modes in_mode
 		if (!err) {
 			// Recurse on subdirectory
 			if (node->file_size == 0) {
-				if (in_mode == k_generate_avl) *in_root = nil;
+				if (in_mode == k_generate_avl) *in_root = NULL;
 			}
 			else {
 				if (in_path && asprintf(&path, "%s%s%c", in_path, node->filename, PATH_CHAR) == -1) mem_err();
@@ -1465,7 +1448,7 @@ dir_node_avl *avl_fetch( dir_node_avl *in_root, const char *in_filename ) {
 	int				result;
 
 	for ( ;; ) {
-		if ( in_root == nil ) return nil;
+		if ( in_root == NULL ) return NULL;
 	
 		result = avl_compare_key( in_filename, in_root->filename_cp1252);
 	
@@ -1480,7 +1463,7 @@ avl_result avl_insert( dir_node_avl **in_root, dir_node_avl *in_node ) {
 	avl_result		tmp;
 	int				result;
 	
-	if ( *in_root == nil ) { *in_root = in_node; return k_avl_balanced; }
+	if ( *in_root == NULL ) { *in_root = in_node; return k_avl_balanced; }
 
 	result = avl_compare_key( in_node->filename_cp1252, (*in_root)->filename_cp1252);
 	
@@ -1610,7 +1593,7 @@ int avl_compare_key( const char *in_lhs, const char *in_rhs ) {
 int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callback, void *in_context, avl_traversal_method in_method, int in_depth ) {
 	int			err;
 
-	if ( in_root == nil ) return 0;
+	if ( in_root == NULL ) return 0;
 	
 	switch ( in_method ) {
 		case k_prefix: {
@@ -1649,13 +1632,13 @@ int boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_
 	s_pattern = in_pattern;
 	s_pat_len = in_pat_len;
 	
-	if ( ( s_bc_table = (long *) malloc( in_alphabet_size * sizeof(long) ) ) == nil ) mem_err();
+	if ( ( s_bc_table = (long *) malloc( in_alphabet_size * sizeof(long) ) ) == NULL ) mem_err();
 	
 	if ( ! err ) {
 		for ( i = 0; i < in_alphabet_size; ++i ) s_bc_table[ i ] = in_pat_len;
 		for ( i = 0; i < in_pat_len - 1; ++i ) s_bc_table[ (uint8_t) in_pattern[ i ] ] = in_pat_len - i - 1;
 	
-		if ( ( s_gs_table = (long *) malloc( 2 * ( in_pat_len + 1 ) * sizeof(long) ) ) == nil ) mem_err();
+		if ( ( s_gs_table = (long *) malloc( 2 * ( in_pat_len + 1 ) * sizeof(long) ) ) == NULL ) mem_err();
 	}	
 
 	if ( ! err ) {
@@ -1684,8 +1667,8 @@ int boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_
 
 
 void boyer_moore_done() {
-	if ( s_bc_table ) { free( s_bc_table ); s_bc_table = nil; }
-	if ( s_gs_table ) { free( s_gs_table ); s_gs_table = nil; }
+	if ( s_bc_table ) { free( s_bc_table ); s_bc_table = NULL; }
+	if ( s_gs_table ) { free( s_gs_table ); s_gs_table = NULL; }
 }
 
 
@@ -1704,7 +1687,7 @@ char *boyer_moore_search( char *in_text, long in_text_len ) {
 		}
 	}
 	
-	return i < 0 ? in_text + j + 1 : nil;
+	return i < 0 ? in_text + j + 1 : NULL;
 }
 
 
@@ -1763,7 +1746,7 @@ int extract_file(int in_xiso, dir_node *in_file, modes in_mode, const char* path
 
 
 int free_dir_node_avl( dir_node_avl *in_dir_node_avl, unused void *in_context, unused int in_depth ) {
-	if ((in_dir_node_avl->attributes & XISO_ATTRIBUTE_DIR) && in_dir_node_avl->subdirectory) avl_traverse_depth_first(in_dir_node_avl->subdirectory, (traversal_callback)free_dir_node_avl, nil, k_postfix, 0);
+	if ((in_dir_node_avl->attributes & XISO_ATTRIBUTE_DIR) && in_dir_node_avl->subdirectory) avl_traverse_depth_first(in_dir_node_avl->subdirectory, (traversal_callback)free_dir_node_avl, NULL, k_postfix, 0);
 	
 	if (in_dir_node_avl->filename) free(in_dir_node_avl->filename);
 	free(in_dir_node_avl->filename_cp1252);
@@ -1825,7 +1808,7 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 
 
 int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int in_depth ) {
-	char			*p = nil;
+	char			*p = NULL;
 	uint32_t		bytes = 0, size = 0;
 	int				err = 0, fd = -1, n = 0, i = 0;
 	size_t			len;
@@ -1859,7 +1842,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int
 					bytes -= n;
 					if (s_media_enable && xbe_file) {
 						n += i;
-						for (p = s_copy_buffer; (p = boyer_moore_search(p, n - (long)(p - s_copy_buffer))) != nil; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
+						for (p = s_copy_buffer; (p = boyer_moore_search(p, n - (long)(p - s_copy_buffer))) != NULL; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
 						if (bytes) {
 							i = XISO_MEDIA_ENABLE_LENGTH - 1;
 							n -= i;
@@ -1971,7 +1954,7 @@ int write_dir_start_and_file_positions( dir_node_avl *in_avl, wdsafp_context *io
 int calculate_total_files_and_bytes( dir_node_avl *in_avl, unused void *in_context, unused int in_depth ) {
 	if (in_avl->attributes & XISO_ATTRIBUTE_DIR) {
 		if (in_avl->subdirectory) {
-			avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)calculate_total_files_and_bytes, nil, k_prefix, 0);
+			avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)calculate_total_files_and_bytes, NULL, k_prefix, 0);
 		}
 	} else {
 		++s_total_files;
@@ -2016,16 +1999,16 @@ int calculate_directory_size( dir_node_avl *in_avl, uint32_t *out_size, int in_d
 
 
 int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
-	struct dirent	   *p = nil;
+	struct dirent	   *p = NULL;
 	struct stat			sb = { 0 };
-	dir_node_avl	   *avl = nil;
-	DIR				   *dir = nil;
+	dir_node_avl	   *avl = NULL;
+	DIR				   *dir = NULL;
 	int					err = 0, i = 0, j = 0;
 	bool				empty_dir = true;
 
-	if ( ( dir = opendir( "." ) ) == nil ) mem_err();
+	if ( ( dir = opendir( "." ) ) == NULL ) mem_err();
 
-	while ( ! err && ( p = readdir( dir ) ) != nil ) {
+	while ( ! err && ( p = readdir( dir ) ) != NULL ) {
 		if ( ! strcmp( p->d_name, "." ) || ! strcmp( p->d_name, ".." ) ) continue;
 
 		for ( i = *io_n; i; --i ) exiso_log( "\b" );
@@ -2035,13 +2018,13 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 		*io_n = i;
 		flush();
 		
-		if ( ( avl = (dir_node_avl *) calloc( 1, sizeof(dir_node_avl) ) ) == nil ) mem_err();
-		if (!err && (avl->filename = strdup(p->d_name)) == nil) mem_err();
+		if ( ( avl = (dir_node_avl *) calloc( 1, sizeof(dir_node_avl) ) ) == NULL ) mem_err();
+		if (!err && (avl->filename = strdup(p->d_name)) == NULL) mem_err();
 		if (!err) {
 			if (s_cp1252) {
 				avl->filename_cp1252 = avl->filename;
-				avl->filename = nil;
-			} else if ((avl->filename_cp1252 = getCP1252String(p->d_name)) == nil) mem_err();
+				avl->filename = NULL;
+			} else if ((avl->filename_cp1252 = getCP1252String(p->d_name)) == NULL) mem_err();
 		}
 		if ( ! err && stat( p->d_name, &sb ) == -1 ) read_err();
 		if ( ! err ) {
@@ -2083,7 +2066,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 		}
 	}
 	
-	if ( empty_dir ) *out_root = nil;
+	if ( empty_dir ) *out_root = NULL;
 	
 	if ( dir ) closedir( dir );
 	
@@ -2095,8 +2078,8 @@ int get_filetime_now(file_time_t *ft) {
 	time_t				now = 0;
 	int					err = 0;
 
-	if (ft == nil) return 1;
-	if ( ( now = time( nil ) ) == -1 ) unknown_err();
+	if (ft == NULL) return 1;
+	if ( ( now = time( NULL ) ) == -1 ) unknown_err();
 	if ( ! err ) {
 		*ft = (now * 10000000LL) + 116444736000000000LL;	// Magic numbers directly from Microsoft
 		little64(*ft);	// convert to little endian here because this is a PC only struct and we won't read it anyway
@@ -2159,9 +2142,9 @@ void write_sector( int in_xiso, xoff_t in_start, const char *in_name, const char
 	ssize_t			wrote;
 	xoff_t			curpos = 0;
 	int				fp = -1, err = 0;
-	char		   *cwd, *sect = nil, buf[ 256 ];
+	char		   *cwd, *sect = NULL, buf[ 256 ];
 
-	if ( ( cwd = getcwd( nil, 0 ) ) == nil ) mem_err();
+	if ( ( cwd = getcwd( NULL, 0 ) ) == NULL ) mem_err();
 	if ( ! err && chdir( DEBUG_DUMP_DIRECTORY ) == -1 ) chdir_err( DEBUG_DUMP_DIRECTORY );
 
 	sprintf( buf, "%" PRId64 ".%s.%s", in_start, in_name, in_extension ? in_extension : "");
@@ -2170,7 +2153,7 @@ void write_sector( int in_xiso, xoff_t in_start, const char *in_name, const char
 	if ( ! err && ( curpos = lseek_with_error( in_xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
 	if ( ! err && lseek_with_error( in_xiso, in_start, SEEK_SET ) == -1 ) seek_err();
 	
-	if ( ! err && ( sect = (char *) malloc( XISO_SECTOR_SIZE ) ) == nil ) mem_err();
+	if ( ! err && ( sect = (char *) malloc( XISO_SECTOR_SIZE ) ) == NULL ) mem_err();
 	
 	if ( ! err && read( in_xiso, sect, XISO_SECTOR_SIZE ) != XISO_SECTOR_SIZE ) read_err();
 	if ( ! err && ( wrote = write( fp, sect, XISO_SECTOR_SIZE ) ) != XISO_SECTOR_SIZE ) write_err();
