@@ -457,7 +457,7 @@ typedef int64_t							file_time_t;
 #define XGD2_ALT_LSEEK_OFFSET			0x89D80000ul
 #define LSEEK_OFFSETS_LEN				5
 /* The offsets should be in ascending order, otherwise we could get a seek error before checking the correct one */
-xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET, XGD2_LSEEK_OFFSET, XGD1_LSEEK_OFFSET, XGD2_ALT_LSEEK_OFFSET};
+const xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET, XGD2_LSEEK_OFFSET, XGD1_LSEEK_OFFSET, XGD2_ALT_LSEEK_OFFSET};
 
 #define	XISO_HEADER_DATA				"MICROSOFT*XBOX*MEDIA"
 #define XISO_HEADER_DATA_LENGTH			20
@@ -512,8 +512,8 @@ xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_OFFSET
 
 #define GETOPT_STRING					"c:d:Dhlmp:qQrsvx"
 
-char* cp1252_locales[] = { ".1252" /* Windows */, "C.CP1252", "en_US.CP1252", "de_DE.CP1252", NULL };
-char* utf8_locales[] = { ".UTF-8" /* Windows */, "C.UTF-8", "en_US.UTF-8", NULL };
+const char* const cp1252_locales[] = { ".1252" /* Windows */, "C.CP1252", "en_US.CP1252", "de_DE.CP1252", NULL };
+const char* const utf8_locales[] = { ".UTF-8" /* Windows */, "C.UTF-8", "en_US.UTF-8", NULL };
 
 
 typedef enum avl_skew { k_no_skew , k_left_skew , k_right_skew } avl_skew;
@@ -649,13 +649,15 @@ static xoff_t							s_xbox_disc_lseek = 0;
 
 
 int main( int argc, char **argv ) {
-	struct stat		sb;
-	create_list		*create = NULL, *p, *q;
-	int				i, fd, opt_char, err = 0, isos = 0;
-	bool			extract = true, rewrite = false, x_seen = false, delete = false, optimized;
-	ptrdiff_t		diff;
-	char			*path = NULL, *buf = NULL, *new_iso_path = NULL, *locale = NULL, **locale_arr = NULL;
-	char			tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
+	struct stat			sb;
+	create_list			*create = NULL, *p, *q;
+	int					i, fd, opt_char, err = 0, isos = 0;
+	bool				extract = true, rewrite = false, x_seen = false, delete = false, optimized;
+	ptrdiff_t			diff;
+	char				*path = NULL, *buf = NULL, *new_iso_path = NULL;
+	const char			*locale = NULL;
+	const char* const	*locale_arr = NULL;
+	char				tag[XISO_OPTIMIZED_TAG_LENGTH + 1];
 
 	if (argc < 2) usage_and_exit(1);
 	
