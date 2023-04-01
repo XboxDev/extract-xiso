@@ -593,8 +593,8 @@ avl_result avl_insert( dir_node_avl **in_root, dir_node_avl *in_node );
 int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callback, void *in_context, avl_traversal_method in_method, int in_depth );
 
 void boyer_moore_done();
-char *boyer_moore_search( char *in_text, long in_text_len );
-int boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_size );
+char *boyer_moore_search( char *in_text, size_t in_text_len );
+int boyer_moore_init( const char *in_pattern, size_t in_pat_len, size_t in_alphabet_size );
 
 int free_dir_node_avl(dir_node_avl* in_dir_node_avl, void* in_context, int in_depth);
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, const char *path );
@@ -622,11 +622,11 @@ void write_sector( int in_xiso, xoff_t in_start, const char *in_name, const char
 #endif
 
 
-static long								s_pat_len;
+static size_t							s_pat_len;
 static bool								s_quiet = false;
 static const char					   *s_pattern = NULL;
-static long							   *s_gs_table = NULL;
-static long							   *s_bc_table = NULL;
+static size_t							*s_gs_table = NULL;
+static size_t							*s_bc_table = NULL;
 static long long						s_total_bytes = 0;
 static int								s_total_files = 0;
 static char							   *s_copy_buffer = NULL;
@@ -1622,41 +1622,58 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 #endif
 
 
-int boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_size ) {
-	long			i, j, k, *backup, err = 0;
+int boyer_moore_init( const char *in_pattern, size_t in_pat_len, size_t in_alphabet_size ) {
+	size_t			j, k, t, t1, q, q1, *aux = NULL;
+	int				err = 0;
 
 	s_pattern = in_pattern;
 	s_pat_len = in_pat_len;
-	
-	if ( ( s_bc_table = (long *) malloc( in_alphabet_size * sizeof(long) ) ) == NULL ) mem_err();
-	
-	if ( ! err ) {
-		for ( i = 0; i < in_alphabet_size; ++i ) s_bc_table[ i ] = in_pat_len;
-		for ( i = 0; i < in_pat_len - 1; ++i ) s_bc_table[ (uint8_t) in_pattern[ i ] ] = in_pat_len - i - 1;
-	
-		if ( ( s_gs_table = (long *) malloc( 2 * ( in_pat_len + 1 ) * sizeof(long) ) ) == NULL ) mem_err();
-	}	
 
-	if ( ! err ) {
-		backup = s_gs_table + in_pat_len + 1;
-		
-		for ( i = 1; i <= in_pat_len; ++i ) s_gs_table[ i ] = 2 * in_pat_len - i;
-		for ( i = in_pat_len, j = in_pat_len + 1; i; --i, --j ) {
-			backup[ i ] = j;
+	boyer_moore_done();	// Prepare for a new init
+
+	if (in_pat_len == 0) return 0;
 	
-			while ( j <= in_pat_len && in_pattern[ i - 1 ] != in_pattern[ j - 1 ] ) {
-				if ( s_gs_table[ j ] > in_pat_len - i ) s_gs_table[ j ] = in_pat_len - i;
-				j = backup[ j ];	
+	// Delta1 table
+	if ((s_bc_table = (size_t*)malloc(in_alphabet_size * sizeof(size_t))) == NULL) mem_err();
+	if (!err) {
+		for (k = 0; k < in_alphabet_size; k++) s_bc_table[k] = in_pat_len;
+		for (k = 0; k < in_pat_len; k++) s_bc_table[(unsigned char)in_pattern[k]] = in_pat_len - 1 - k;
+	}
+
+	// Delta2 table (dd' algorithm with Rytter correction)
+	if (!err && (s_gs_table = (size_t*)malloc(in_pat_len * sizeof(size_t))) == NULL) mem_err();
+	if (!err && (aux = (size_t*)malloc(in_pat_len * sizeof(size_t))) == NULL) mem_err();
+	if (!err) {
+		// Step A1
+		for (k = 1; k <= in_pat_len; k++) s_gs_table[k - 1] = 2 * in_pat_len - k;
+
+		// Step A2
+		for (j = in_pat_len, t = in_pat_len + 1; j > 0; j--, t--) {
+			aux[j - 1] = t;
+			while (t <= in_pat_len && in_pattern[j - 1] != in_pattern[t - 1]) {
+				s_gs_table[t - 1] = min(s_gs_table[t - 1], in_pat_len - j);
+				t = aux[t - 1];
 			}
 		}
-		for ( i = 1; i <= j; ++i ) if ( s_gs_table[ i ] > in_pat_len + j - i ) s_gs_table[ i ] = in_pat_len + j - i;
-		
-		k = backup[ j ];
-	
-		for ( ; j <= in_pat_len; k = backup[ k ] ) {
-			for ( ; j <= k; ++j ) if ( s_gs_table[ j ] >= k - j + in_pat_len ) s_gs_table[ j ] = k - j + in_pat_len;
+
+		// Step B1
+		q = t; t = in_pat_len + 1 - q;
+		for (j = 1, t1 = 0; j <= t; t1++, j++) {
+			aux[j - 1] = t1;
+			while (t1 >= 1 && in_pattern[j - 1] != in_pattern[t1 - 1]) t1 = aux[t1 - 1];
+		}
+
+		// Step B2
+		q1 = 1;
+		while (q < in_pat_len) {
+			for (k = q1; k <= q; k++) {
+				s_gs_table[k - 1] = min(s_gs_table[k - 1], in_pat_len + q - k);
+			}
+			q1 = q + 1; q = q + t - aux[t - 1]; t = aux[t - 1];
 		}
 	}
+
+	if (aux) free(aux);
 	
 	return err;
 }
@@ -1668,22 +1685,20 @@ void boyer_moore_done() {
 }
 
 
-char *boyer_moore_search( char *in_text, long in_text_len ) {
-	long			i, j, k, l;
+char* boyer_moore_search(char* in_text, size_t in_text_len) {
+	size_t	i, j;
 
-	for ( i = j = s_pat_len - 1; j < in_text_len && i >= 0; ) {
-		if ( in_text[ j ] == s_pattern[ i ] ) { --i; --j; }
-		else {
-			k = s_gs_table[ i + 1 ];
-			l = s_bc_table[ (uint8_t) in_text[ j ] ];
+	if (s_pat_len == 0) return in_text;
 
-			j += max( k, l );
-			
-			i = s_pat_len - 1;
+	i = s_pat_len - 1;
+	while (i < in_text_len) {
+		for (j = s_pat_len - 1; in_text[i] == s_pattern[j]; --i, --j) {
+			if (j == 0) return in_text + i;
 		}
+
+		i += max(s_bc_table[(unsigned char)in_text[i]], s_gs_table[j]);
 	}
-	
-	return i < 0 ? in_text + j + 1 : NULL;
+	return NULL;
 }
 
 
