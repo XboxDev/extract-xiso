@@ -1179,14 +1179,14 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 	}
 
 	if (!err && in_mode == k_extract) {
+		if ((cwd = getcwd(NULL, 0)) == NULL) mem_err();
 		if (in_path) {
-			if (strlen(in_path) == 0) misc_err("empty destination path");
-			if (!err && (cwd = getcwd(NULL, 0)) == NULL) mem_err();
+			if (!err && strlen(in_path) == 0) misc_err("empty destination path");
 			if (!err && mkdir(in_path, 0755) == -1) mkdir_err(in_path);
 			if (!err && chdir(in_path) == -1) chdir_err(in_path);
 		}
 		else {
-			if (strlen(iso_name) == 0) misc_err("invalid xiso image name: %s", in_xiso);
+			if (!err && strlen(iso_name) == 0) misc_err("invalid xiso image name: %s", in_xiso);
 			if (!err && mkdir(iso_name, 0755) == -1) mkdir_err(iso_name);
 			if (!err && chdir(iso_name) == -1) chdir_err(iso_name);
 		}
