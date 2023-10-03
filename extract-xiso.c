@@ -971,7 +971,7 @@ int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_
 	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s appears to be corrupt", in_iso_name );
 
 	// seek to root directory sector
-	if (!err && lseek_with_error(in_xiso, (xoff_t)*out_root_dir_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
+	if (!err && lseek_with_error(in_xiso, (xoff_t)*out_root_dir_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
 	
 	return err;
 }
@@ -1201,8 +1201,6 @@ int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_pat
 
 		root_dir_start = (xoff_t)root_dir_sect * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 		root_end_offset = (uint16_t)(n_sectors(root_dir_size) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE);
-
-		if (!err && lseek_with_error(xiso, root_dir_start, SEEK_SET) == -1) seek_err();
 		
 		if (in_mode == k_rewrite) {
 			if (!err && root_dir_size == 0) root = NULL;
