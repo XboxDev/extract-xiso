@@ -630,7 +630,7 @@ static int								s_total_files_all_isos = 0;
 static bool								s_warned = 0;
 
 static bool				                s_remove_systemupdate = false;
-static char				               *s_systemupdate = "$SystemUpdate";
+static const char		               *s_systemupdate = "$SystemUpdate";
 
 static xoff_t							s_xbox_disc_lseek = 0;
 
