@@ -270,6 +270,10 @@
 	#include <strings.h>
 #endif
 
+#include <algorithm>
+
+using namespace std;
+
 
 #if defined( __DARWIN__ )
 	#define exiso_target				"macos-x"
@@ -428,12 +432,6 @@
 #define misc_err( in_format, a, b, c )	{ log_err( __FILE__, __LINE__, ( in_format ), ( a ), ( b ), ( c ) ); err = 1; }
 
 
-#ifndef min
-	#define min( a , b )				( ( a ) < ( b ) ? ( a ) : ( b ) )
-	#define max( a , b )				( ( a ) > ( b ) ? ( a ) : ( b ) )
-#endif
-
-
 #define GLOBAL_LSEEK_OFFSET       0x0FD90000ul
 #define XGD3_LSEEK_OFFSET         0x02080000ul
 #define XGD1_LSEEK_OFFSET         0x18300000ul
@@ -442,7 +440,7 @@
 
 #define	XISO_HEADER_DATA				"MICROSOFT*XBOX*MEDIA"
 #define XISO_HEADER_DATA_LENGTH			20
-#define XISO_HEADER_OFFSET				0x10000
+constexpr unsigned XISO_HEADER_OFFSET = 0x10000;
 
 #define XISO_FILE_MODULUS				0x10000
 	
@@ -462,7 +460,7 @@
 #define XISO_DWORD_SIZE					4
 #define XISO_FILETIME_SIZE				8
 
-#define XISO_SECTOR_SIZE				2048
+constexpr unsigned XISO_SECTOR_SIZE = 2048;
 #define XISO_UNUSED_SIZE				0x7c8
 
 #define XISO_FILENAME_OFFSET			14
@@ -486,7 +484,7 @@
 
 #define EMPTY_SUBDIRECTORY				( (dir_node_avl *) 1 )
 
-#define READWRITE_BUFFER_SIZE			0x00200000
+constexpr unsigned READWRITE_BUFFER_SIZE = 0x00200000;
 
 #define DEBUG_DUMP_DIRECTORY			"/Volumes/c/xbox/iso/exiso"
 
