@@ -271,6 +271,9 @@
 #endif
 
 #include <algorithm>
+#include <functional>
+#include <optional>
+#include <vector>
 
 using namespace std;
 
@@ -574,9 +577,7 @@ dir_node_avl *avl_fetch( dir_node_avl *in_root, char *in_filename );
 avl_result avl_insert( dir_node_avl **in_root, dir_node_avl *in_node );
 int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callback, void *in_context, avl_traversal_method in_method, long in_depth );
 
-void boyer_moore_done();
 char *boyer_moore_search( char *in_text, long in_text_len );
-void boyer_moore_init(const char *in_pattern, long in_pat_len, long in_alphabet_size );
 
 int free_dir_node_avl( void *in_dir_node_avl, void *, long );
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
@@ -605,9 +606,7 @@ void write_sector( int in_xiso, xoff_t in_start, char *in_name, char *in_extensi
 
 static long								s_pat_len;
 static bool								s_quiet = false;
-static const char					   *s_pattern = nullptr;
-static long							   *s_gs_table = nullptr;
-static long							   *s_bc_table = nullptr;
+static optional<boyer_moore_searcher<const char *>> bm_searcher;
 static xoff_t							s_total_bytes = 0;
 static int								s_total_files = 0;
 static char							   *s_copy_buffer = nullptr;
@@ -721,7 +720,8 @@ int main( int argc, char **argv ) {
 
 	if ( ( extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nullptr ) mem_err();
 	
-	if ( create || rewrite ) boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
+	if ( create || rewrite )
+		bm_searcher.emplace(XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE + XISO_MEDIA_ENABLE_LENGTH);
 
 	if ( create ) {
 		for ( p = create; ! err && p != nullptr; ) {
@@ -805,8 +805,6 @@ int main( int argc, char **argv ) {
 	
 	if ( ! err && isos > 1 ) exiso_log( "\n%u files in %u xiso's total %lld bytes\n", s_total_files_all_isos, isos, (long long int) s_total_bytes_all_isos );
 	if ( s_warned ) exiso_log( "\nWARNING:  Warning(s) were issued during execution--review stderr!\n" );
-	
-	boyer_moore_done();
 	
 	if ( s_copy_buffer ) free( s_copy_buffer );
 	if ( path ) free( path );
@@ -1527,62 +1525,11 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 #endif
 
 
-void boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_size ) {
-	long			i, j, k, *backup;
-
-	s_pattern = in_pattern;
-	s_pat_len = in_pat_len;
-	
-	if ( ( s_bc_table = (long *) malloc( in_alphabet_size * sizeof(long) ) ) == nullptr ) mem_err();
-	
-	for ( i = 0; i < in_alphabet_size; ++i ) s_bc_table[ i ] = in_pat_len;
-	for ( i = 0; i < in_pat_len - 1; ++i ) s_bc_table[ (uint8_t) in_pattern[ i ] ] = in_pat_len - i - 1;
-
-	if ( ( s_gs_table = (long *) malloc( 2 * ( in_pat_len + 1 ) * sizeof(long) ) ) == nullptr ) mem_err();
-
-	backup = s_gs_table + in_pat_len + 1;
-
-	for ( i = 1; i <= in_pat_len; ++i ) s_gs_table[ i ] = 2 * in_pat_len - i;
-	for ( i = in_pat_len, j = in_pat_len + 1; i; --i, --j ) {
-		backup[ i ] = j;
-
-		while ( j <= in_pat_len && in_pattern[ i - 1 ] != in_pattern[ j - 1 ] ) {
-			if ( s_gs_table[ j ] > in_pat_len - i ) s_gs_table[ j ] = in_pat_len - i;
-			j = backup[ j ];
-		}
-	}
-	for ( i = 1; i <= j; ++i ) if ( s_gs_table[ i ] > in_pat_len + j - i ) s_gs_table[ i ] = in_pat_len + j - i;
-
-	k = backup[ j ];
-
-	for ( ; j <= in_pat_len; k = backup[ k ] ) {
-		for ( ; j <= k; ++j ) if ( s_gs_table[ j ] >= k - j + in_pat_len ) s_gs_table[ j ] = k - j + in_pat_len;
-	}
-}
-
-
-void boyer_moore_done() {
-	if ( s_bc_table ) { free( s_bc_table ); s_bc_table = nullptr; }
-	if ( s_gs_table ) { free( s_gs_table ); s_gs_table = nullptr; }
-}
-
-
 char *boyer_moore_search( char *in_text, long in_text_len ) {
-	long			i, j, k, l;
-
-	for ( i = j = s_pat_len - 1; j < in_text_len && i >= 0; ) {
-		if ( in_text[ j ] == s_pattern[ i ] ) { --i; --j; }
-		else {
-			k = s_gs_table[ i + 1 ];
-			l = s_bc_table[ (uint8_t) in_text[ j ] ];
-
-			j += max( k, l );
-			
-			i = s_pat_len - 1;
-		}
-	}
-	
-	return i < 0 ? in_text + j + 1 : nullptr;
+	auto result = (*bm_searcher)(in_text, in_text + in_text_len);
+	if (result.first == in_text + in_text_len)
+		return nullptr;
+	return result.first;
 }
 
 
