@@ -588,7 +588,7 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 
 void boyer_moore_done();
 char *boyer_moore_search( char *in_text, long in_text_len );
-int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size );
+int boyer_moore_init(const char *in_pattern, long in_pat_len, long in_alphabet_size );
 
 int free_dir_node_avl( void *in_dir_node_avl, void *, long );
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
@@ -617,7 +617,7 @@ void write_sector( int in_xiso, xoff_t in_start, char *in_name, char *in_extensi
 
 static long								s_pat_len;
 static bool								s_quiet = false;
-static char							   *s_pattern = nil;
+static const char					   *s_pattern = nil;
 static long							   *s_gs_table = nil;
 static long							   *s_bc_table = nil;
 static xoff_t							s_total_bytes = 0;
@@ -1562,7 +1562,7 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 #endif
 
 
-int boyer_moore_init( char *in_pattern, long in_pat_len, long in_alphabet_size ) {
+int boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_size ) {
 	long			i, j, k, *backup, err = 0;
 
 	s_pattern = in_pattern;
