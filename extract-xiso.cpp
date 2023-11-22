@@ -647,7 +647,7 @@ int main( int argc, char **argv ) {
 	struct stat		sb;
 	create_list	   *create = nil, *p, *q, **r;
 	int				i, fd, opt_char, err = 0, isos = 0;
-	bool			extract = true, rewrite = false, free_user = false, free_pass = false, x_seen = false, delete = false, optimized;
+    bool			extract = true, rewrite = false, free_user = false, free_pass = false, x_seen = false, del = false, optimized;
 	char		   *cwd = nil, *path = nil, *buf = nil, *new_iso_path = nil, tag[ XISO_OPTIMIZED_TAG_LENGTH * sizeof(long) ];
 
 	if ( argc < 2 ) { usage(); exit( 1 ); }
@@ -678,7 +678,7 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'D': {
-				delete = true;
+                del = true;
 			} break;
 
 			case 'h': {
@@ -817,7 +817,7 @@ int main( int argc, char **argv ) {
 						if ( err ) { err = 0; free( buf ); continue; }
 					}
 					if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path, true );
-					if ( ! err && delete && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s\n", buf );
+                    if ( ! err && del && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s\n", buf );
 					
 					if ( buf ) free( buf );
 				} else {
