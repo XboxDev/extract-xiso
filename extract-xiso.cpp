@@ -366,12 +366,6 @@
 #endif
 
 
-#if ! defined( __cplusplus ) && ! defined( bool )
-	typedef int bool;
-	enum { false, true };
-#endif
-
-
 #define exiso_version					"2.7.1 (01.11.14)"
 #define VERSION_LENGTH					16
 
