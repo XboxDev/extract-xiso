@@ -419,7 +419,7 @@ void usage(const char *name)
 #define exiso_log						if ( ! s_quiet ) printf
 #define flush()							if ( ! s_quiet ) fflush( stdout )
 
-#define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error\n" ); err = 1; }
+#define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error\n" ); exit(1); }
 #define read_err()						{ log_err( __FILE__, __LINE__, "read error: %s\n", strerror( errno ) ); err = 1; }
 #define seek_err()						{ log_err( __FILE__, __LINE__, "seek error: %s\n", strerror( errno ) ); err = 1; }
 #define write_err()						{ log_err( __FILE__, __LINE__, "write error: %s\n", strerror( errno ) ); err = 1; }
@@ -578,7 +578,7 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 
 void boyer_moore_done();
 char *boyer_moore_search( char *in_text, long in_text_len );
-int boyer_moore_init(const char *in_pattern, long in_pat_len, long in_alphabet_size );
+void boyer_moore_init(const char *in_pattern, long in_pat_len, long in_alphabet_size );
 
 int free_dir_node_avl( void *in_dir_node_avl, void *, long );
 int extract_file( int in_xiso, dir_node *in_file, modes in_mode, char *path );
@@ -640,7 +640,7 @@ int main( int argc, char **argv ) {
 	if ( argc < 2 )
 		usage( argv[0] );
 	
-	while ( ! err && ( opt_char = getopt( argc, argv, GETOPT_STRING ) ) != -1 ) {
+	while (( opt_char = getopt( argc, argv, GETOPT_STRING ) ) != -1 ) {
 		switch ( opt_char ) {
 			case 'c': {
 				if ( x_seen || rewrite || ! extract )
@@ -649,13 +649,11 @@ int main( int argc, char **argv ) {
 				for ( r = &create; *r != nullptr; r = &(*r)->next ) ;
 
 				if ( ( *r = (create_list *) malloc( sizeof(create_list) ) ) == nullptr ) mem_err();
-				if ( ! err ) {
-					(*r)->name = nullptr;
-					(*r)->next = nullptr;
-					
-					if ( ( (*r)->path = strdup( optarg ) ) == nullptr ) mem_err();
-				}
-				if ( ! err && argv[ optind ] && *argv[ optind ] != '-' && *argv[ optind ] && ( (*r)->name = strdup( argv[ optind++ ] ) ) == nullptr ) mem_err();
+				(*r)->name = nullptr;
+				(*r)->next = nullptr;
+
+				if ( ( (*r)->path = strdup( optarg ) ) == nullptr ) mem_err();
+				if ( argv[ optind ] && *argv[ optind ] != '-' && *argv[ optind ] && ( (*r)->name = strdup( argv[ optind++ ] ) ) == nullptr ) mem_err();
 			} break;
 			
 			case 'd': {
@@ -718,19 +716,16 @@ int main( int argc, char **argv ) {
 		}
 	}
 	
-	if ( ! err ) {
+	if ( create ) { if ( optind < argc ) { usage( argv[0] ); } }
+	else if ( optind >= argc ) { usage( argv[0] ); }
 
-		if ( create ) { if ( optind < argc ) { usage( argv[0] ); } }
-		else if ( optind >= argc ) { usage( argv[0] ); }
-	
-		exiso_log( "%s", banner );
-	
-		if ( ( extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nullptr ) mem_err();
-	}
-	
-	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
+	exiso_log( "%s", banner );
 
-	if ( ! err && create ) {
+	if ( ( extract ) && ( s_copy_buffer = (char *) malloc( READWRITE_BUFFER_SIZE ) ) == nullptr ) mem_err();
+	
+	if ( create || rewrite ) boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
+
+	if ( create ) {
 		for ( p = create; ! err && p != nullptr; ) {
 			char			*tmp = nullptr;
 
@@ -739,14 +734,12 @@ int main( int argc, char **argv ) {
 
 				if ( i ) {
 					if ( ( tmp = (char *) malloc( i + 1 ) ) == nullptr ) mem_err();
-					if ( ! err ) {
-						strncpy( tmp, p->name, i );
-						tmp[ i ] = 0;
-					}
+					strncpy( tmp, p->name, i );
+					tmp[ i ] = 0;
 				}
 			}
 			
-			if ( ! err ) err = create_xiso( p->path, tmp, nullptr, -1, nullptr, p->name ? p->name + i : nullptr, nullptr );
+			err = create_xiso( p->path, tmp, nullptr, -1, nullptr, p->name ? p->name + i : nullptr, nullptr );
 
 			if ( tmp ) free( tmp );
 
@@ -764,42 +757,39 @@ int main( int argc, char **argv ) {
 		s_total_bytes = s_total_files = 0;
 		
 		
+		optimized = false;
+
+		if ( ( fd = open( argv[ i ], READFLAGS, 0 ) ) == -1 ) open_err( argv[ i ] );
+		if ( ! err && lseek( fd, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
+		if ( ! err && read( fd, tag, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) read_err();
+
+		if ( fd != -1 ) close( fd );
+
 		if ( ! err ) {
-			optimized = false;
-		
-			if ( ( fd = open( argv[ i ], READFLAGS, 0 ) ) == -1 ) open_err( argv[ i ] );
-			if ( ! err && lseek( fd, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
-			if ( ! err && read( fd, tag, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) read_err();
-			
-			if ( fd != -1 ) close( fd );
+			tag[ XISO_OPTIMIZED_TAG_LENGTH ] = 0;
 
-			if ( ! err ) {
-				tag[ XISO_OPTIMIZED_TAG_LENGTH ] = 0;
+			if ( ! strncmp( tag, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH_MIN ) ) optimized = true;
 
-				if ( ! strncmp( tag, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH_MIN ) ) optimized = true;
-
-				if ( rewrite ) {
-					if ( optimized ) {
-						exiso_log( "%s is already optimized, skipping...\n", argv[ i ] );
-						continue;
-					}
-				
-					if ( ! err && ( buf = (char *) malloc( strlen( argv[ i ] ) + 5 ) ) == nullptr ) mem_err();	// + 5 magic number is for ".old\0"
-					if ( ! err ) {
-						sprintf( buf, "%s.old", argv[ i ] );
-						if ( stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s\n", buf, argv[ i ], 0 );
-						if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s\n", argv[ i ], buf, 0 );
-						
-						if ( err ) { err = 0; free( buf ); continue; }
-					}
-					if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path, true );
-                    if ( ! err && del && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s\n", buf );
-					
-					if ( buf ) free( buf );
-				} else {
-					// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
-					if ( ! err ) err = decode_xiso( argv[ i ], path, extract ? k_extract : k_list, nullptr, ! optimized );
+			if ( rewrite ) {
+				if ( optimized ) {
+					exiso_log( "%s is already optimized, skipping...\n", argv[ i ] );
+					continue;
 				}
+
+				if ( ! err && ( buf = (char *) malloc( strlen( argv[ i ] ) + 5 ) ) == nullptr ) mem_err();	// + 5 magic number is for ".old\0"
+				sprintf( buf, "%s.old", argv[ i ] );
+				if ( stat( buf, &sb ) != -1 ) misc_err( "%s already exists, cannot rewrite %s\n", buf, argv[ i ], 0 );
+				if ( ! err && rename( argv[ i ], buf ) == -1 ) misc_err( "cannot rename %s to %s\n", argv[ i ], buf, 0 );
+
+				if ( err ) { err = 0; free( buf ); continue; }
+
+				if ( ! err ) err = decode_xiso( buf, path, k_rewrite, &new_iso_path, true );
+				if ( ! err && del && unlink( buf ) == -1 ) log_err( __FILE__, __LINE__, "unable to delete %s\n", buf );
+
+				if ( buf ) free( buf );
+			} else {
+				// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
+				if ( ! err ) err = decode_xiso( argv[ i ], path, extract ? k_extract : k_list, nullptr, ! optimized );
 			}
 		}
 		
@@ -927,18 +917,16 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 	memset( &root, 0, sizeof(dir_node_avl) );
 
 	if ( ( cwd = getcwd( nullptr, 0 ) ) == nullptr ) mem_err();
-	if ( ! err ) {
-		if ( ! in_root ) {
-			if ( chdir( in_root_directory ) == -1 ) chdir_err( in_root_directory );
-			if ( ! err ) {
-				if ( in_root_directory[ i = (int) strlen( in_root_directory ) - 1 ] == '/' || in_root_directory[ i ] == '\\' ) in_root_directory[ i-- ] = 0;
-				for ( iso_dir = &in_root_directory[ i ]; iso_dir >= in_root_directory && *iso_dir != PATH_CHAR; --iso_dir ) ; ++iso_dir;
+	if ( ! in_root ) {
+		if ( chdir( in_root_directory ) == -1 ) chdir_err( in_root_directory );
+		if ( ! err ) {
+			if ( in_root_directory[ i = (int) strlen( in_root_directory ) - 1 ] == '/' || in_root_directory[ i ] == '\\' ) in_root_directory[ i-- ] = 0;
+			for ( iso_dir = &in_root_directory[ i ]; iso_dir >= in_root_directory && *iso_dir != PATH_CHAR; --iso_dir ) ; ++iso_dir;
 
-				iso_name = in_name ? in_name : iso_dir;
-			}
-		} else {
-			iso_dir = iso_name = in_root_directory;
+			iso_name = in_name ? in_name : iso_dir;
 		}
+	} else {
+		iso_dir = iso_name = in_root_directory;
 	}
 	if ( ! err ) {
 		if ( ! *iso_dir ) iso_dir = PATH_CHAR_STR;
@@ -1017,7 +1005,7 @@ int create_xiso( char *in_root_directory, char *in_output_directory, dir_node_av
 			memset( buf, 0, XISO_FILETIME_SIZE );
 		} else {
 			if ( ( ft = alloc_filetime_now() ) == nullptr ) mem_err();
-			if ( ! err && write( xiso, ft, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
+			if ( write( xiso, ft, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
 		}
 	}
 	if ( ! err && write( xiso, buf, XISO_UNUSED_SIZE ) != XISO_UNUSED_SIZE ) write_err();
@@ -1541,43 +1529,37 @@ int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callb
 #endif
 
 
-int boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_size ) {
-	long			i, j, k, *backup, err = 0;
+void boyer_moore_init( const char *in_pattern, long in_pat_len, long in_alphabet_size ) {
+	long			i, j, k, *backup;
 
 	s_pattern = in_pattern;
 	s_pat_len = in_pat_len;
 	
 	if ( ( s_bc_table = (long *) malloc( in_alphabet_size * sizeof(long) ) ) == nullptr ) mem_err();
 	
-	if ( ! err ) {
-		for ( i = 0; i < in_alphabet_size; ++i ) s_bc_table[ i ] = in_pat_len;
-		for ( i = 0; i < in_pat_len - 1; ++i ) s_bc_table[ (uint8_t) in_pattern[ i ] ] = in_pat_len - i - 1;
-	
-		if ( ( s_gs_table = (long *) malloc( 2 * ( in_pat_len + 1 ) * sizeof(long) ) ) == nullptr ) mem_err();
-	}	
+	for ( i = 0; i < in_alphabet_size; ++i ) s_bc_table[ i ] = in_pat_len;
+	for ( i = 0; i < in_pat_len - 1; ++i ) s_bc_table[ (uint8_t) in_pattern[ i ] ] = in_pat_len - i - 1;
 
-	if ( ! err ) {
-		backup = s_gs_table + in_pat_len + 1;
-		
-		for ( i = 1; i <= in_pat_len; ++i ) s_gs_table[ i ] = 2 * in_pat_len - i;
-		for ( i = in_pat_len, j = in_pat_len + 1; i; --i, --j ) {
-			backup[ i ] = j;
-	
-			while ( j <= in_pat_len && in_pattern[ i - 1 ] != in_pattern[ j - 1 ] ) {
-				if ( s_gs_table[ j ] > in_pat_len - i ) s_gs_table[ j ] = in_pat_len - i;
-				j = backup[ j ];	
-			}
-		}
-		for ( i = 1; i <= j; ++i ) if ( s_gs_table[ i ] > in_pat_len + j - i ) s_gs_table[ i ] = in_pat_len + j - i;
-		
-		k = backup[ j ];
-	
-		for ( ; j <= in_pat_len; k = backup[ k ] ) {
-			for ( ; j <= k; ++j ) if ( s_gs_table[ j ] >= k - j + in_pat_len ) s_gs_table[ j ] = k - j + in_pat_len;
+	if ( ( s_gs_table = (long *) malloc( 2 * ( in_pat_len + 1 ) * sizeof(long) ) ) == nullptr ) mem_err();
+
+	backup = s_gs_table + in_pat_len + 1;
+
+	for ( i = 1; i <= in_pat_len; ++i ) s_gs_table[ i ] = 2 * in_pat_len - i;
+	for ( i = in_pat_len, j = in_pat_len + 1; i; --i, --j ) {
+		backup[ i ] = j;
+
+		while ( j <= in_pat_len && in_pattern[ i - 1 ] != in_pattern[ j - 1 ] ) {
+			if ( s_gs_table[ j ] > in_pat_len - i ) s_gs_table[ j ] = in_pat_len - i;
+			j = backup[ j ];
 		}
 	}
-	
-	return err;
+	for ( i = 1; i <= j; ++i ) if ( s_gs_table[ i ] > in_pat_len + j - i ) s_gs_table[ i ] = in_pat_len + j - i;
+
+	k = backup[ j ];
+
+	for ( ; j <= in_pat_len; k = backup[ k ] ) {
+		for ( ; j <= k; ++j ) if ( s_gs_table[ j ] >= k - j + in_pat_len ) s_gs_table[ j ] = k - j + in_pat_len;
+	}
 }
 
 
