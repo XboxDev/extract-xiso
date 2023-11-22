@@ -375,7 +375,9 @@ using namespace std;
 
 #define banner							"extract-xiso v" exiso_version " for " exiso_target " - written by in <in@fishtank.com>\n"
 
-#define usage() 						fprintf( stderr, \
+void usage(const char *name)
+{
+	fprintf( stderr, \
 "%s\n\
   Usage:\n\
 \n\
@@ -411,7 +413,8 @@ using namespace std;
     -Q                  Run silent (suppress all output).\n\
     -s                  Skip $SystemUpdate folder.\n\
     -v                  Print version information and exit.\n\
-", banner, argv[ 0 ], argv[ 0 ] );
+", banner, name, name );
+}
 
 #define exiso_log						if ( ! s_quiet ) printf
 #define flush()							if ( ! s_quiet ) fflush( stdout )
@@ -634,15 +637,14 @@ int main( int argc, char **argv ) {
     bool			extract = true, rewrite = false, free_user = false, free_pass = false, x_seen = false, del = false, optimized;
 	char		   *cwd = nullptr, *path = nullptr, *buf = nullptr, *new_iso_path = nullptr, tag[ XISO_OPTIMIZED_TAG_LENGTH * sizeof(long) ];
 
-	if ( argc < 2 ) { usage(); exit( 1 ); }
+	if ( argc < 2 )
+		usage( argv[0] );
 	
 	while ( ! err && ( opt_char = getopt( argc, argv, GETOPT_STRING ) ) != -1 ) {
 		switch ( opt_char ) {
 			case 'c': {
-				if ( x_seen || rewrite || ! extract ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || rewrite || ! extract )
+					usage( argv[0] );
 			
 				for ( r = &create; *r != nullptr; r = &(*r)->next ) ;
 
@@ -666,23 +668,18 @@ int main( int argc, char **argv ) {
 			} break;
 
 			case 'h': {
-				usage();
-				exit( 0 );
+				usage( argv[0] );
 			} break;
 			
 			case 'l': {
-				if ( x_seen || rewrite || create ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || rewrite || create )
+					usage( argv[0] );
 				extract = false;
 			} break;
 			
 			case 'm': {
-				if ( x_seen || ! extract ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || ! extract )
+					usage( argv[0] );
 				s_media_enable = false;
 			} break;
 			
@@ -695,10 +692,8 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'r': {
-				if ( x_seen || ! extract || create ) {
-					usage();
-					exit( 1 );
-				}
+				if ( x_seen || ! extract || create )
+					usage( argv[0] );
 				rewrite = true;
 			} break;
 
@@ -712,24 +707,21 @@ int main( int argc, char **argv ) {
 			} break;
 			
 			case 'x': {
-				if ( ! extract || rewrite || create ) {
-					usage();
-					exit( 1 );
-				}
+				if ( ! extract || rewrite || create )
+					usage( argv[0] );
 				x_seen = true;
 			} break;
 
 			default: {
-				usage();
-				exit( 1 );
+				usage( argv[0] );
 			} break;
 		}
 	}
 	
 	if ( ! err ) {
 
-		if ( create ) { if ( optind < argc ) { usage(); exit( 1 ); } }
-		else if ( optind >= argc ) { usage(); exit( 1 ); }
+		if ( create ) { if ( optind < argc ) { usage( argv[0] ); } }
+		else if ( optind >= argc ) { usage( argv[0] ); }
 	
 		exiso_log( "%s", banner );
 	
