@@ -494,21 +494,19 @@ constexpr unsigned READWRITE_BUFFER_SIZE = 0x00200000;
 #define GETOPT_STRING					"c:d:Dhlmp:qQrsvx"
 
 
-typedef enum avl_skew { k_no_skew , k_left_skew , k_right_skew } avl_skew;
-typedef enum avl_result { no_err, k_avl_error, k_avl_balanced } avl_result;
-typedef enum avl_traversal_method { k_prefix, k_infix, k_postfix } avl_traversal_method;
+enum avl_skew { k_no_skew , k_left_skew , k_right_skew };
+enum avl_result { no_err, k_avl_error, k_avl_balanced };
+enum avl_traversal_method { k_prefix, k_infix, k_postfix };
 
-typedef enum bm_constants { k_default_alphabet_size = 256 } bm_constants;
+enum bm_constants { k_default_alphabet_size = 256 };
 
-typedef enum modes { k_generate_avl, k_extract, k_list, k_rewrite } modes;
-typedef enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 } errors;
+enum modes { k_generate_avl, k_extract, k_list, k_rewrite };
+enum errors { err_end_of_sector = -5001, err_iso_rewritten = -5002, err_iso_no_files = -5003 };
 
 typedef void (*progress_callback)( xoff_t in_current_value, xoff_t in_final_value );
 typedef int (*traversal_callback)( void *in_node, void *in_context, long in_depth );
 
-typedef struct dir_node dir_node;
-typedef struct create_list create_list;
-typedef struct dir_node_avl dir_node_avl;
+struct dir_node_avl;
 
 struct dir_node {
 	dir_node						   *left;
