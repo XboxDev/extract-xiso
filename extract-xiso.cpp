@@ -237,9 +237,6 @@
 #if defined( __LINUX__ )
 	#define _LARGEFILE64_SOURCE
 #endif
-#if defined( __GNUC__ )
-	#define _GNU_SOURCE
-#endif
 
 
 #include <time.h>
