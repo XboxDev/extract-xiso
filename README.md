@@ -88,7 +88,7 @@ Extract XISO contents to a directory.
 
   #### Fedora
   ```
-sudo dnf install cmake gcc gcc-c++ glibc-devel.i686 git -y
+sudo dnf install cmake gcc gcc-c++ glibc-devel.i686 git -y 
 ```
   #### Ubuntu
   ```
