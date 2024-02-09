@@ -84,15 +84,15 @@ Extract XISO contents to a directory.
 - make
 - gcc
 
-### Linux Requirements
+### Linux Distribution Requirements
 
   #### Fedora
   ```
-sudo dnf install cmake gcc gcc-c++ glibc-devel.i686 -y
+sudo dnf install cmake gcc gcc-c++ glibc-devel.i686 git -y
 ```
   #### Ubuntu
   ```
-sudo apt install gcc-multilib build-essential -y
+sudo apt install gcc-multilib build-essential git -y
 ```
 
 ### Windows / macOS / Linux
