@@ -112,7 +112,7 @@ jobs:
     - name: FreeBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
-        wget -nv http://ftp.plusline.de/FreeBSD/releases/amd64/13.1-RELEASE/base.txz && \
+        wget -nv http://ftp.plusline.de/FreeBSD/releases/amd64/13.2-RELEASE/base.txz && \
         mkdir -p $SYSROOT_PATH && cd $SYSROOT_PATH && \
         tar -xf /tmp/base.txz ./lib/ ./usr/lib/ ./usr/include/ && \
         cd $SYSROOT_PATH/usr/lib && \
@@ -144,12 +144,12 @@ jobs:
     - name: OpenBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
-        wget -nv  https://cdn.openbsd.org/pub/OpenBSD/7.2/amd64/base72.tgz \
-        https://cdn.openbsd.org/pub/OpenBSD/7.2/amd64/comp72.tgz && \
+        wget -nv  https://cdn.openbsd.org/pub/OpenBSD/7.4/amd64/base74.tgz \
+        https://cdn.openbsd.org/pub/OpenBSD/7.4/amd64/comp74.tgz && \
         mkdir -p $SYSROOT_PATH && cd $SYSROOT_PATH && \
-        tar -xf /tmp/base72.tgz ./usr/lib/ ./usr/include/ && \
-        tar -xf /tmp/comp72.tgz ./usr/lib/ ./usr/include/ && \
-        rm -f /tmp/base72.tgz /tmp/comp72.tgz
+        tar -xf /tmp/base74.tgz ./usr/lib/ ./usr/include/ && \
+        tar -xf /tmp/comp74.tgz ./usr/lib/ ./usr/include/ && \
+        rm -f /tmp/base74.tgz /tmp/comp74.tgz
     - name: CMake generate
       run: |
         mkdir build && cd build
