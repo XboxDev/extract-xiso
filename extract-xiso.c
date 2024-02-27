@@ -352,6 +352,7 @@
 		#define lseek					_lseeki64
 		#define mkdir(a, b)				_mkdir(a)
 		#define stat					_stat64
+		#define lstat					_stat64
 		#define realpath(a, b)			_fullpath(b, a, _MAX_PATH)
 
 		#define bswap_16(x)				_byteswap_ushort(x)
@@ -986,35 +987,39 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
 	int						i = 0, n = 0, xiso = -1, err = 0;
-	char				   *cwd = NULL, *iso_name = NULL, *xiso_path = NULL, *iso_dir = NULL, *real_path = NULL;
+	char				   *cwd = NULL, *iso_name = NULL, *xiso_path = NULL, *iso_dir = NULL, *real_path = NULL, *in_dir_path = NULL;
 
 	s_total_bytes = s_total_files = 0;
 
 	if ( ( cwd = getcwd( NULL, 0 ) ) == NULL ) mem_err();
-	if ( ! err ) {
-		if ( ! in_root ) {
-			i = (int)strlen(in_root_directory) - 1;
-			if ( in_root_directory[i] == '/' || in_root_directory[i] == '\\' ) in_root_directory[i] = 0;
-			if ((iso_dir = strrchr(in_root_directory, PATH_CHAR))) iso_dir++;
-			else iso_dir = in_root_directory;
-
-			iso_name = in_name ? in_name : iso_dir;
-		} else {
+	if (!err) {
+		if (!in_root) {
+			if ((in_dir_path = realpath(in_root_directory, NULL)) == NULL) misc_err("unable to get absolute path of %s: %s", in_root_directory, strerror(errno));
+			if (!err) {
+				// Remember not to free in_dir_path until iso_dir is not needed anymore
+				if ((iso_dir = strrchr(in_dir_path, PATH_CHAR)) != NULL) iso_dir++;
+				else iso_dir = in_dir_path;
+				iso_name = in_name ? in_name : iso_dir;
+			}
+		}
+		else {
 			iso_dir = iso_name = in_root_directory;
 		}
 	}
-	if ( ! err ) {
-		if ( ! *iso_dir ) iso_dir = PATH_CHAR_STR;
-		if ( ! iso_name || ! *iso_name ) iso_name = "root";
-		else if ( iso_name[ 1 ] == ':' ) { iso_name[ 1 ] = iso_name[ 0 ]; ++iso_name; }
-		if (!err && (real_path = realpath(in_output_directory ? in_output_directory : ".", NULL)) == NULL) misc_err("unable to get absolute path of %s: %s", real_path, strerror(errno));
+	if(!err) {
+		if (!iso_dir || !*iso_dir) iso_dir = PATH_CHAR_STR;
+		if (!iso_name || !*iso_name) iso_name = "root";
+		else if (iso_name[1] == ':') { iso_name[1] = iso_name[0]; ++iso_name; }
+
+		if (in_output_directory == NULL) in_output_directory = ".";
+		if (!err && (real_path = realpath(in_output_directory, NULL)) == NULL) misc_err("unable to get absolute path of %s: %s", in_output_directory, strerror(errno));
 		if (!err && (asprintf(&xiso_path, "%s%c%s%s", real_path, PATH_CHAR, iso_name, in_name ? "" : ".iso")) == -1) mem_err();
 		if (real_path) {
 			free(real_path);
 			real_path = NULL;
 		}
 
-		if (!err && !in_root && chdir(in_root_directory) == -1) chdir_err(in_root_directory);
+		if (!err && !in_root && chdir(in_dir_path) == -1) chdir_err(in_dir_path);
 	}
 	if ( ! err ) {
 		exiso_log( "\n%s %s%s:\n", in_root ? "rewriting" : "creating", iso_name, in_name ? "" : ".iso" );
@@ -1090,7 +1095,7 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	if ( ! err && write( xiso, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) write_err();
 	
 	if ( ! err && ! in_root ) {
-		if ( chdir( ".." ) == -1 ) chdir_err( ".." );
+		if (chdir("..") == -1) chdir_err("..");
 	}
 	if (!err && (root.filename = strdup(iso_dir)) == NULL) mem_err();
 	if (!err) {
@@ -1137,6 +1142,11 @@ int create_xiso( char *in_root_directory, const char *in_output_directory, dir_n
 	
 	if (root.filename) free(root.filename);
 	if (root.filename_cp1252) free(root.filename_cp1252);
+
+	if (in_dir_path) {
+		free(in_dir_path);
+		in_dir_path = NULL;
+	}
 
 	if ( cwd ) {
 		if ( chdir( cwd ) == -1 ) chdir_err( cwd );
@@ -2032,7 +2042,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 				avl->filename = NULL;
 			} else if ((avl->filename_cp1252 = getCP1252String(p->d_name)) == NULL) mem_err();
 		}
-		if ( ! err && stat( p->d_name, &sb ) == -1 ) read_err();
+		if ( ! err && lstat( p->d_name, &sb ) == -1 ) read_err();
 		if ( ! err ) {
 			if ( S_ISDIR( sb.st_mode ) ) {
 				empty_dir = false;
