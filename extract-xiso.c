@@ -1568,11 +1568,8 @@ int avl_compare_key( const char *in_lhs, const char *in_rhs ) {
 	unsigned char		a, b;
 
 	for ( ;; ) {
-		a = (unsigned char)*in_lhs++;
-		b = (unsigned char)*in_rhs++;
-		
-		if ( a >= 'a' && a <= 'z' ) a -= 32;	// uppercase(a);
-		if ( b >= 'a' && b <= 'z' ) b -= 32;	// uppercase(b);
+		a = (unsigned char)toupperCP1252(*in_lhs++);
+		b = (unsigned char)toupperCP1252(*in_rhs++);
 		
 		if ( a ) {
 			if ( b ) {

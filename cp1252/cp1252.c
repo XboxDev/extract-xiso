@@ -15,6 +15,7 @@ size_t strcplen(const char* buf, bool utf8);
 const char* getCodePointFromUTF8Sequence(const char* buf, uint32_t* out);
 char* getUTF8String(const char* input);
 char* getCP1252String(const char* input);
+char toupperCP1252(char c);
 
 uint32_t getUnicodeFromCP1252(char input) {
 	switch ((unsigned char)input) {
@@ -144,7 +145,7 @@ char getCP1252FromUnicode(uint32_t input) {
 			return (char)input;
 		}
 		else {
-			return '\x20';	// SPACE
+			return '\x3F';	// QUESTION MARK
 		}
 	}
 }
@@ -272,6 +273,22 @@ char* getCP1252String(const char* input) {
 	}
 	*p = '\0';
 	return ret;
+}
+
+char toupperCP1252(char c) {
+	if (c >= 'a' && c <= 'z') {
+		c -= 32;
+	}
+	else if (c == '\x9A' || c == '\x9C' || c == '\x9E') {
+		c -= 16;
+	}
+	else if ((c >= '\xE0' && c <= '\xF6') || (c >= '\xF8' && c <= '\xFE')) {
+		c -= 32;
+	}
+	else if (c == '\xFF') {
+		c = '\x9F';
+	}
+	return c;
 }
 
 #endif //CP1252_INCLUDED
