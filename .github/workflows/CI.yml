@@ -20,7 +20,7 @@ jobs:
         echo "BUILD_TAG=$BUILD_TAG" >> $GITHUB_ENV
         echo -n $BUILD_TAG > tag
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tag
         path: tag
@@ -55,7 +55,7 @@ jobs:
       run: |
         mkdir artifacts
         mv -vb build\${{ matrix.configuration }}\extract-xiso.exe, LICENSE.TXT artifacts
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-${{ matrix.artifact_os }}-${{ matrix.configuration }}
         path: artifacts
@@ -76,7 +76,7 @@ jobs:
       run: |
         mkdir artifacts
         mv -v build/extract-xiso LICENSE.TXT artifacts
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-linux
         path: artifacts
@@ -97,7 +97,7 @@ jobs:
       run: |
         mkdir artifacts
         mv -v build/extract-xiso LICENSE.TXT artifacts
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-macos
         path: artifacts
@@ -129,7 +129,7 @@ jobs:
       run: |
         mkdir artifacts
         mv -v build/extract-xiso LICENSE.TXT artifacts
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-freebsd
         path: artifacts
@@ -161,7 +161,7 @@ jobs:
       run: |
         mkdir artifacts
         mv -v build/extract-xiso LICENSE.TXT artifacts
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-openbsd
         path: artifacts
@@ -193,7 +193,7 @@ jobs:
       run: |
         mkdir artifacts
         mv -v build/extract-xiso LICENSE.TXT artifacts
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-netbsd
         path: artifacts
@@ -204,7 +204,7 @@ jobs:
     needs: [build-windows, build-linux, build-macos, build-freebsd, build-openbsd, build-netbsd]
     steps:
     - name: Download artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: dist
     - name: Create archives
