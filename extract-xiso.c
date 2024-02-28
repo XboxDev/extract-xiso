@@ -281,9 +281,10 @@
 #endif
 
 #if defined(_WIN32)
+	#include <io.h>
 	#include <direct.h>
 	#include "win32/dirent.c"
-	#include "win32/getopt.c"
+	#include <getopt.h>	/* Provided by CMake */
 #else
 	#include <dirent.h>
 	#include <limits.h>
@@ -291,7 +292,7 @@
 #endif
 
 #if defined(_MSC_VER)
-	#include "win32/asprintf.c"
+	#include <asprintf.h>	/* Provided by CMake */
 	#include <BaseTsd.h>
 #else
 	#include <strings.h>
