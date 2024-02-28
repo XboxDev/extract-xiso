@@ -44,6 +44,8 @@ jobs:
             artifact_os: Win64
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     - name: CMake generate
       run: |
         mkdir build && cd build
@@ -65,6 +67,8 @@ jobs:
     needs: Init
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     - name: CMake generate
       run: |
         mkdir build && cd build
@@ -86,6 +90,8 @@ jobs:
     needs: Init
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     - name: CMake generate
       run: |
         mkdir build && cd build
@@ -109,6 +115,8 @@ jobs:
         SYSROOT_PATH: /opt/cross-freebsd-13
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     - name: FreeBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
@@ -141,6 +149,8 @@ jobs:
         SYSROOT_PATH: /opt/cross-openbsd-7
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     - name: OpenBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
@@ -173,6 +183,8 @@ jobs:
         SYSROOT_PATH: /opt/cross-netbsd-9
     steps:
     - uses: actions/checkout@v4
+      with:
+        submodules: 'true'
     - name: NetBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
