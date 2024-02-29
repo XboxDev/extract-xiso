@@ -242,22 +242,12 @@
 
 #if defined(__GNUC__)
 	#define _GNU_SOURCE
-	#define unused	__attribute__((__unused__))
 #elif defined(_MSC_VER)
 	#pragma warning(disable: 4706)	// C4706: assignment within conditional expression
-	#define unused	__pragma(warning(suppress:4100))	/* This unfortunately disables the warning for the whole line and the next one */
-#else
-	#define unused
 #endif
 
 #ifndef DEBUG
 	#define DEBUG	0
-#endif
-
-#if DEBUG
-	#define unused_release
-#else
-	#define unused_release	unused
 #endif
 
 #include <time.h>
@@ -272,6 +262,7 @@
 #include <string.h>
 #include <inttypes.h>
 #include <locale.h>
+#include <dirent.h>		/* Provided by CMake on Windows */
 #include <sys/stat.h>
 #include <sys/types.h>
 #include "cp1252/cp1252.c"
@@ -283,10 +274,8 @@
 #if defined(_WIN32)
 	#include <io.h>
 	#include <direct.h>
-	#include "win32/dirent.c"
 	#include <getopt.h>	/* Provided by CMake */
 #else
-	#include <dirent.h>
 	#include <limits.h>
 	#include <unistd.h>
 #endif
@@ -337,9 +326,6 @@
 	#define exiso_target				"Windows"
 
 	#if defined(_MSC_VER)
-		#define S_ISDIR(x)				((x) & _S_IFDIR)
-		#define S_ISREG(x)				((x) & _S_IFREG)
-
 		typedef SSIZE_T					ssize_t;
 		#define strcasecmp				_stricmp
 		#define strncasecmp				_strnicmp
@@ -353,7 +339,6 @@
 		#define lseek					_lseeki64
 		#define mkdir(a, b)				_mkdir(a)
 		#define stat					_stat64
-		#define lstat					_stat64
 		#define realpath(a, b)			_fullpath(b, a, _MAX_PATH)
 
 		#define bswap_16(x)				_byteswap_ushort(x)
@@ -423,6 +408,21 @@ typedef int64_t							file_time_t;
 #ifndef min
 	#define min(a, b)					( (a) < (b) ? (a) : (b) )
 	#define max(a, b)					( (a) > (b) ? (a) : (b) )
+#endif
+
+/* These definitions need to be after all the includes */
+#if defined(__GNUC__)
+	#define unused	__attribute__((__unused__))
+#elif defined(_MSC_VER)
+	#define unused	__pragma(warning(suppress:4100))	/* This unfortunately disables the warning for the whole line and the next one */
+#else
+	#define unused
+#endif
+
+#if DEBUG
+	#define unused_release
+#else
+	#define unused_release	unused
 #endif
 
 #define exiso_version					"2.7.1 (01.11.14)"
@@ -618,6 +618,9 @@ int calculate_directory_requirements( dir_node_avl *in_avl, void *in_context, in
 int calculate_directory_offsets( dir_node_avl *in_avl, uint32_t *io_context, int in_depth );
 int write_dir_start_and_file_positions( dir_node_avl *in_avl, wdsafp_context *io_context, int in_depth );
 int write_volume_descriptors( int in_xiso, uint32_t in_total_sectors );
+
+static int is_lnk_lstat(struct dirent* p, bool* lnk);
+static int is_lnk(struct dirent* p, bool* lnk);
 
 #if DEBUG
 void write_sector( int in_xiso, xoff_t in_start, const char *in_name, const char *in_extension );
@@ -2014,6 +2017,41 @@ int calculate_directory_size( dir_node_avl *in_avl, uint32_t *out_size, int in_d
 	return 0;
 }
 
+static int is_lnk_lstat(struct dirent* p, bool* lnk) {
+	if (p == NULL || lnk == NULL) {
+		errno = EFAULT;
+		return -1;
+	}
+#if !defined(_WIN32)
+	struct stat sb = { 0 };
+	if (lstat(p->d_name, &sb) == -1) {
+		return -1;
+	}
+	*lnk = S_ISLNK(sb.st_mode);
+#else
+	*lnk = false;
+#endif	// _WIN32
+	return 0;
+}
+
+static int is_lnk(struct dirent* p, bool* lnk) {
+	if (p == NULL || lnk == NULL) {
+		errno = EFAULT;
+		return -1;
+	}
+#if defined(_DIRENT_HAVE_D_TYPE)
+	if (p->d_type == DT_UNKNOWN) {
+		return is_lnk_lstat(p, lnk);
+	}
+	else {
+		*lnk = (p->d_type == DT_LNK);
+		return 0;
+	}
+#else
+	return is_lnk_lstat(p, lnk);
+#endif // _DIRENT_HAVE_D_TYPE
+}
+
 
 int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 	struct dirent	   *p = NULL;
@@ -2021,7 +2059,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 	dir_node_avl	   *avl = NULL;
 	DIR				   *dir = NULL;
 	int					err = 0, i = 0, j = 0;
-	bool				empty_dir = true;
+	bool				empty_dir = true, lnk;
 
 	if ( ( dir = opendir( "." ) ) == NULL ) mem_err();
 
@@ -2034,8 +2072,11 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 		for ( j = i; j < *io_n; ++j ) exiso_log( "\b" );
 		*io_n = i;
 		flush();
+
+		if (is_lnk(p, &lnk) == -1) read_err();
+		else if (lnk) continue;
 		
-		if ( ( avl = (dir_node_avl *) calloc( 1, sizeof(dir_node_avl) ) ) == NULL ) mem_err();
+		if (!err && ( avl = (dir_node_avl *) calloc( 1, sizeof(dir_node_avl) ) ) == NULL ) mem_err();
 		if (!err && (avl->filename = strdup(p->d_name)) == NULL) mem_err();
 		if (!err) {
 			if (s_cp1252) {
@@ -2043,7 +2084,7 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 				avl->filename = NULL;
 			} else if ((avl->filename_cp1252 = getCP1252String(p->d_name)) == NULL) mem_err();
 		}
-		if ( ! err && lstat( p->d_name, &sb ) == -1 ) read_err();
+		if ( ! err && stat( p->d_name, &sb ) == -1 ) read_err();
 		if ( ! err ) {
 			if ( S_ISDIR( sb.st_mode ) ) {
 				empty_dir = false;

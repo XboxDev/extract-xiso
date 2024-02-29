@@ -4,3 +4,6 @@
 [submodule "deps/asprintf"]
 	path = deps/asprintf
 	url = https://github.com/eiszapfen2000/asprintf.git
+[submodule "deps/dirent"]
+	path = deps/dirent
+	url = https://github.com/tronkko/dirent.git

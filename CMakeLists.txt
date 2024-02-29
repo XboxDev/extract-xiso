@@ -8,6 +8,7 @@ set(SOURCE_FILES
 )
 
 set(DEPS_DIR ${CMAKE_CURRENT_SOURCE_DIR}/deps)
+set(DIRENT_DIR ${DEPS_DIR}/dirent)
 set(GETOPT_DIR ${DEPS_DIR}/getopt_port)
 set(ASPRINTF_DIR ${DEPS_DIR}/asprintf)
 
@@ -36,6 +37,11 @@ set_property(TARGET extract-xiso PROPERTY C_STANDARD 99)
 set_property(TARGET extract-xiso PROPERTY C_EXTENSIONS OFF)
 
 if(WIN32)
+    add_library(dirent INTERFACE)
+    target_include_directories(dirent INTERFACE ${DIRENT_DIR}/include)
+
+    target_link_libraries(extract-xiso dirent)
+
     add_library(getopt STATIC ${GETOPT_DIR}/getopt.c)
     target_sources(getopt PUBLIC ${GETOPT_DIR}/getopt.h)
     target_include_directories(getopt PUBLIC ${GETOPT_DIR})
