@@ -53,10 +53,18 @@ jobs:
     - name: Build
       working-directory: build
       run: cmake --build . --config ${{ matrix.configuration }} -j $env:NUMBER_OF_PROCESSORS
+    - name: Copy licenses
+      run: |
+        mkdir LICENSES
+        for /D %%x in (deps/*) do (
+          mkdir LICENSES\%%x
+          copy deps\%%x\LICENSE* LICENSES\%%x
+        )
+      shell: cmd
     - name: Prepare artifacts
       run: |
         mkdir artifacts
-        mv -vb build\${{ matrix.configuration }}\extract-xiso.exe, LICENSE.TXT artifacts
+        mv -vb build\${{ matrix.configuration }}\extract-xiso.exe, LICENSE.TXT, LICENSES artifacts
     - uses: actions/upload-artifact@v4
       with:
         name: extract-xiso-${{ matrix.artifact_os }}-${{ matrix.configuration }}
