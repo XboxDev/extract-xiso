@@ -649,7 +649,7 @@ static xoff_t							s_xbox_disc_lseek = 0;
 
 int main( int argc, char **argv ) {
 	struct stat			sb;
-	create_list			*create = NULL, *p, *q;
+	create_list			*create = NULL, *p;
 	int					i, fd, opt_char, err = 0, isos = 0;
 	bool				extract = true, rewrite = false, x_seen = false, delete = false, optimized;
 	ptrdiff_t			diff;
@@ -760,30 +760,30 @@ int main( int argc, char **argv ) {
 	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
 
 	if ( ! err && create ) {
-		p = create;
-		while (!err && p != NULL) {
+		/* After this loop create will be NULL, so remember not to check it anymore */
+		while (!err && create != NULL) {
 			diff = 0;
-			if ( p->name && (buf = strrchr(p->name, PATH_CHAR)) ) {
-				diff = buf - p->name;
-				if ( ( buf = (char *) malloc( diff + 1 ) ) == NULL ) mem_err();
-				if ( ! err ) {
-					strncpy( buf, p->name, diff );
-					buf[ diff ] = 0;
+			if (create->name && (buf = strrchr(create->name, PATH_CHAR))) {
+				diff = buf - create->name;
+				if ((buf = (char*)malloc(diff + 1)) == NULL) mem_err();
+				if (!err) {
+					strncpy(buf, create->name, diff);
+					buf[diff] = 0;
 				}
 				diff += 1;
 			}
-			
-			if ( ! err ) err = create_xiso( p->path, buf, NULL, -1, NULL, p->name ? p->name + diff : NULL, NULL );
+
+			if (!err) err = create_xiso(create->path, buf, NULL, -1, NULL, create->name ? create->name + diff : NULL, NULL);
 
 			if (buf) { free(buf); buf = NULL; }
 
-			q = p->next;
+			p = create->next;
 
-			if ( p->name ) free( p->name );
-			if ( p->path ) free( p->path );
-			free( p );
-			
-			p = q;
+			if (create->name) free(create->name);
+			if (create->path) free(create->path);
+			free(create);
+
+			create = p;
 		}
 	} else for ( i = optind; ! err && i < argc; ++i ) {
 		++isos;
