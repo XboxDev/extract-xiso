@@ -1,0 +1,9 @@
+[submodule "deps/getopt_port"]
+	path = deps/getopt_port
+	url = https://github.com/kimgr/getopt_port.git
+[submodule "deps/asprintf"]
+	path = deps/asprintf
+	url = https://github.com/eiszapfen2000/asprintf.git
+[submodule "deps/dirent"]
+	path = deps/dirent
+	url = https://github.com/tronkko/dirent.git
