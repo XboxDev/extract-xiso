@@ -823,6 +823,10 @@ int main( int argc, char **argv ) {
 				if (buf) { free(buf); buf = NULL; }
 			} else {
 				// the order of the mutually exclusive options here is important, the extract ? k_extract : k_list test *must* be the final comparison
+				if (!extract && s_remove_systemupdate) {	/* List mode */
+					s_remove_systemupdate = false;
+					exiso_log("\nINFO: \"-s\" option disabled in list mode");
+				}
 				err = decode_xiso( argv[ i ], extract ? path : NULL, extract ? k_extract : k_list, NULL );
 			}
 		}
@@ -1281,6 +1285,9 @@ static int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset
 		if (!err && (entry_offset * XISO_DWORD_SIZE + XISO_FILENAME_OFFSET + node->filename_length) > (end_offset * XISO_DWORD_SIZE)) misc_err("node entry spans beyond directory end");
 
 		if (!err) {
+			/* Save next offset for discovery */
+			entry_offset = n_dword(entry_offset * XISO_DWORD_SIZE + XISO_FILENAME_OFFSET + node->filename_length);
+
 			little16(l_offset);
 			little16(r_offset);
 			little32(node->file_size);
@@ -1306,7 +1313,7 @@ static int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset
 		}
 
 		// Process the node according to the mode
-		if (!err) {
+		if (!err && (!s_remove_systemupdate || strcmp(node->filename, s_systemupdate))) {
 			if (in_mode == k_generate_avl) {
 				if ((avl = (dir_node_avl*)calloc(1, sizeof(dir_node_avl))) == NULL) mem_err();
 				if (!err) {
@@ -1344,9 +1351,6 @@ static int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset
 				err = process_node(in_xiso, node, in_path, in_mode, NULL, strategy);
 			}
 		}
-
-		// Save next offset for discovery
-		if (!err) entry_offset = n_dword(entry_offset * XISO_DWORD_SIZE + XISO_FILENAME_OFFSET + node->filename_length);
 
 		// Free memory before recurring or iterating
 		if (filename) {
@@ -1389,15 +1393,12 @@ static int process_node(int in_xiso, dir_node* node, const char* in_path, modes 
 		if (!err) if (lseek_with_error(in_xiso, dir_start, SEEK_SET) == -1) seek_err();
 
 		if (!err) {
-			if (!s_remove_systemupdate || !strstr(node->filename, s_systemupdate))
-			{
-				if (in_mode == k_extract) {
-					if ((err = mkdir(node->filename, 0755))) mkdir_err(node->filename);
-					if (!err && (err = chdir(node->filename))) chdir_err(node->filename);
-				}
-				if (!err && in_mode != k_generate_avl) {
-					exiso_log("\n%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating\t" : "", in_path, node->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
-				}
+			if (in_mode == k_extract) {
+				if ((err = mkdir(node->filename, 0755))) mkdir_err(node->filename);
+				if (!err && (err = chdir(node->filename))) chdir_err(node->filename);
+			}
+			if (!err && in_mode != k_generate_avl) {
+				exiso_log("\n%s%s%s%s (0 bytes)%s", in_mode == k_extract ? "creating\t" : "", in_path, node->filename, PATH_CHAR_STR, in_mode == k_extract ? " [OK]" : ""); flush();
 			}
 		}
 
@@ -1415,25 +1416,19 @@ static int process_node(int in_xiso, dir_node* node, const char* in_path, modes 
 				if (path) free(path);
 			}
 
-			if (!s_remove_systemupdate || !strstr(node->filename, s_systemupdate))
-			{
-				if (!err && in_mode == k_extract && (err = chdir(".."))) chdir_err("..");
-			}
+			if (!err && in_mode == k_extract && (err = chdir(".."))) chdir_err("..");
 		}
 		
 	}
 	else if (in_mode != k_generate_avl) {	// Write file
 		if (!err) {
-			if (!s_remove_systemupdate || !strstr(in_path, s_systemupdate))
-			{
-				if (in_mode == k_extract) err = extract_file(in_xiso, node, in_mode, in_path);
-				else {
-					exiso_log("\n%s%s (%u bytes)", in_path, node->filename, node->file_size); flush();
-				}
-
-				++s_total_files;
-				s_total_bytes += node->file_size;
+			if (in_mode == k_extract) err = extract_file(in_xiso, node, in_mode, in_path);
+			else {
+				exiso_log("\n%s%s (%u bytes)", in_path, node->filename, node->file_size); flush();
 			}
+
+			++s_total_files;
+			s_total_bytes += node->file_size;
 		}
 	}
 
@@ -1720,39 +1715,37 @@ static int extract_file(int in_xiso, dir_node *in_file, modes in_mode, const cha
 
 	if (lseek_with_error(in_xiso, file_start, SEEK_SET) == -1) seek_err();
 
-	if ( !s_remove_systemupdate || !strstr( path, s_systemupdate ) ) {
-		if ( in_mode == k_extract ) {
-			if (!err && (out = open(in_file->filename, WRITEFLAGS, 0644)) == -1) open_err(in_file->filename);
-		} else err = 1;
+	if ( in_mode == k_extract ) {
+		if (!err && (out = open(in_file->filename, WRITEFLAGS, 0644)) == -1) open_err(in_file->filename);
+	} else err = 1;
 
-		if ( ! err ) {
-			exiso_log("\n");
-			if (in_file->file_size == 0) exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename);
-			else {
-				i = 0;
-				size = min(in_file->file_size, READWRITE_BUFFER_SIZE);
-				do {
-					read_size = read(in_xiso, s_copy_buffer, size);
-					if (read_size < 0) read_err();
-					else if (in_mode == k_extract && read_size != 0) {
-						if (write(out, s_copy_buffer, read_size) != read_size) write_err();
-					}
-					if (!err) {
-						totalsize += read_size;
-						totalpercent = (totalsize * 100.0f) / in_file->file_size;
-						exiso_log("%s%s%s (%u bytes) [%.1f%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename, in_file->file_size, totalpercent);
-
-						i += read_size;
-						size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
-					}
-				} while (!err && i < in_file->file_size && read_size > 0);
-				if (!err && i < in_file->file_size) {
-					exiso_warn("File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
-					in_file->file_size = i;
+	if ( ! err ) {
+		exiso_log("\n");
+		if (in_file->file_size == 0) exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename);
+		else {
+			i = 0;
+			size = min(in_file->file_size, READWRITE_BUFFER_SIZE);
+			do {
+				read_size = read(in_xiso, s_copy_buffer, size);
+				if (read_size < 0) read_err();
+				else if (in_mode == k_extract && read_size != 0) {
+					if (write(out, s_copy_buffer, read_size) != read_size) write_err();
 				}
+				if (!err) {
+					totalsize += read_size;
+					totalpercent = (totalsize * 100.0f) / in_file->file_size;
+					exiso_log("%s%s%s (%u bytes) [%.1f%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename, in_file->file_size, totalpercent);
+
+					i += read_size;
+					size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
+				}
+			} while (!err && i < in_file->file_size && read_size > 0);
+			if (!err && i < in_file->file_size) {
+				exiso_warn("File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
+				in_file->file_size = i;
 			}
-			if (in_mode == k_extract) close(out);
 		}
+		if (in_mode == k_extract) close(out);
 	}
 
 	return err;
@@ -2058,7 +2051,7 @@ static int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 	if ( ( dir = opendir( "." ) ) == NULL ) mem_err();
 
 	while ( ! err && ( p = readdir( dir ) ) != NULL ) {
-		if ( ! strcmp( p->d_name, "." ) || ! strcmp( p->d_name, ".." ) ) continue;
+		if (!strcmp(p->d_name, ".") || !strcmp(p->d_name, "..") || (s_remove_systemupdate && !strcmp(p->d_name, s_systemupdate))) continue;
 
 		for ( i = *io_n; i; --i ) exiso_log( "\b" );
 		exiso_log( "%s", p->d_name );
