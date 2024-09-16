@@ -495,10 +495,10 @@ const xoff_t lseek_offsets[LSEEK_OFFSETS_LEN] = {START_LSEEK_OFFSET, XGD3_LSEEK_
 #define XISO_PAD_BYTE					0xff
 #define XISO_PAD_SHORT					0xffff
 
-#define XISO_MEDIA_ENABLE				"\xe8\xca\xfd\xff\xff\x85\xc0\x7d"
-#define XISO_MEDIA_ENABLE_BYTE			'\xeb'
 #define XISO_MEDIA_ENABLE_LENGTH		8
 #define XISO_MEDIA_ENABLE_BYTE_POS		7
+const unsigned char xiso_media_enable[XISO_MEDIA_ENABLE_LENGTH] = { 0xe8, 0xca, 0xfd, 0xff, 0xff, 0x85, 0xc0, 0x7d };
+const unsigned char xiso_media_enable_byte = 0xeb;
 
 #define n_sectors(size)					( (size) / XISO_SECTOR_SIZE + ( (size) % XISO_SECTOR_SIZE ? 1 : 0 ) )
 #define n_dword(offset)					( (offset) / XISO_DWORD_SIZE + ( (offset) % XISO_DWORD_SIZE ? 1 : 0 ) )
@@ -592,8 +592,8 @@ static avl_result avl_insert( dir_node_avl **in_root, dir_node_avl *in_node );
 static int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback in_callback, void *in_context, avl_traversal_method in_method, int in_depth );
 
 static void boyer_moore_done();
-static char *boyer_moore_search( char *in_text, size_t in_text_len );
-static int boyer_moore_init( const char *in_pattern, size_t in_pat_len, size_t in_alphabet_size );
+static unsigned char *boyer_moore_search( unsigned char *in_text, size_t in_text_len );
+static int boyer_moore_init( const unsigned char *in_pattern, size_t in_pat_len, size_t in_alphabet_size );
 
 static int free_dir_node_avl(dir_node_avl* in_dir_node_avl, void* in_context, int in_depth);
 static int extract_file( int in_xiso, dir_node *in_file, modes in_mode, const char *path );
@@ -625,12 +625,12 @@ static void write_sector( int in_xiso, xoff_t in_start, const char *in_name, con
 
 static size_t							s_pat_len;
 static bool								s_quiet = false;
-static const char					   *s_pattern = NULL;
+static const unsigned char				*s_pattern = NULL;
 static size_t							*s_gs_table = NULL;
 static size_t							*s_bc_table = NULL;
 static long long						s_total_bytes = 0;
 static int								s_total_files = 0;
-static char							   *s_copy_buffer = NULL;
+static unsigned char					*s_copy_buffer = NULL;
 static bool								s_real_quiet = false;
 static bool								s_media_enable = true;
 static long long						s_total_bytes_all_isos = 0;
@@ -742,7 +742,7 @@ int main( int argc, char **argv ) {
 	
 		exiso_log(banner);
 	
-		if ((extract || rewrite || create) && (s_copy_buffer = (char*)malloc(READWRITE_BUFFER_SIZE)) == NULL) mem_err();
+		if ((extract || rewrite || create) && (s_copy_buffer = (unsigned char*)malloc(READWRITE_BUFFER_SIZE)) == NULL) mem_err();
 
 	}
 
@@ -757,7 +757,7 @@ int main( int argc, char **argv ) {
 		}
 	}
 	
-	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( XISO_MEDIA_ENABLE, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
+	if ( ! err && ( create || rewrite ) ) err = boyer_moore_init( xiso_media_enable, XISO_MEDIA_ENABLE_LENGTH, k_default_alphabet_size );
 
 	if ( ! err && create ) {
 		/* After this loop create will be NULL, so remember not to check it anymore */
@@ -949,7 +949,7 @@ static int log_err(unused_release const char* in_file, unused_release int in_lin
 
 static int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, const char *in_iso_name ) {
 	int				i, err = 0;
-	char			buffer[XISO_HEADER_DATA_LENGTH];
+	unsigned char	buffer[XISO_HEADER_DATA_LENGTH];
 
 	for (i = 0; !err && i < LSEEK_OFFSETS_LEN; i++) {
 		if (lseek_with_error(in_xiso, (xoff_t)XISO_HEADER_OFFSET + lseek_offsets[i], SEEK_SET) == -1) seek_err();
@@ -967,7 +967,7 @@ static int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *ou
 
 	little32( *out_root_dir_sector );
 	little32( *out_root_dir_size );
-	
+
 	// seek to header tail and verify media tag
 	if ( ! err && lseek_with_error(in_xiso, (xoff_t)XISO_FILETIME_SIZE + XISO_UNUSED_SIZE, SEEK_CUR) == -1) seek_err();
 	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
@@ -983,12 +983,12 @@ static int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *ou
 
 
 static int create_xiso( char *in_root_directory, const char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback ) {
-	xoff_t					pos = 0;
+	xoff_t					size = 0;
 	dir_node_avl			root = { 0 };
 	file_time_t				ft = 0;
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
-	int						i = 0, n = 0, xiso = -1, err = 0;
+	int						i = 0, n = 0, xiso = -1, err = 0, pad = 0;
 	char				   *cwd = NULL, *iso_name = NULL, *xiso_path = NULL, *iso_dir = NULL, *real_path = NULL, *in_dir_path = NULL;
 
 	s_total_bytes = s_total_files = 0;
@@ -1118,14 +1118,15 @@ static int create_xiso( char *in_root_directory, const char *in_output_directory
 		err = avl_traverse_depth_first( &root, (traversal_callback) write_tree, &wt_context, k_prefix, 0 );
 	}
 
-	if ( ! err && ( pos = lseek( xiso, (xoff_t) 0, SEEK_END ) ) == -1 ) seek_err();
+	if ( ! err && ( size = lseek( xiso, (xoff_t) 0, SEEK_END ) ) == -1 ) seek_err();
 	if (!err) {
-		i = (int)((XISO_FILE_MODULUS - pos % XISO_FILE_MODULUS) % XISO_FILE_MODULUS);
-		memset(s_copy_buffer, 0, i);
-		if (write(xiso, s_copy_buffer, i) != i) write_err();
+		pad = (int)((XISO_FILE_MODULUS - (size % XISO_FILE_MODULUS)) % XISO_FILE_MODULUS);
+		size += pad;
+		memset(s_copy_buffer, 0, pad);
+		if (write(xiso, s_copy_buffer, pad) != pad) write_err();
 	}
 
-	if ( ! err ) err = write_volume_descriptors( xiso, (uint32_t)((pos + (xoff_t)i) / XISO_SECTOR_SIZE) );
+	if ( ! err ) err = write_volume_descriptors( xiso, (uint32_t)(size / XISO_SECTOR_SIZE) );
 
 	if ( ! err && lseek( xiso, (xoff_t) XISO_OPTIMIZED_TAG_OFFSET, SEEK_SET ) == -1 ) seek_err();
 	if ( ! err && write( xiso, XISO_OPTIMIZED_TAG, XISO_OPTIMIZED_TAG_LENGTH ) != XISO_OPTIMIZED_TAG_LENGTH ) write_err();
@@ -1267,15 +1268,15 @@ static int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset
 			}
 			else if (strategy != discover_strategy) {			// When discovering, the padding means end of sector
 				exiso_warn("Invalid node found and skipped!");	// When not discovering, the padding means a bad entry, skip it without failing
-				return err;										// We're done if not discovering
+				return 0;										// We're done if not discovering
 			}
 			// We're discovering, so set the offset to the start of the next sector
-			if (!err) entry_offset = n_sectors(entry_offset * XISO_DWORD_SIZE) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
+			entry_offset = n_sectors(entry_offset * XISO_DWORD_SIZE) * XISO_SECTOR_SIZE / XISO_DWORD_SIZE;
 			continue;
 		}
 
 		// Read node
-		if (!err) if ((node = calloc(1, sizeof(dir_node))) == NULL) mem_err();
+		if (!err && (node = calloc(1, sizeof(dir_node))) == NULL) mem_err();
 		if (!err && read(in_xiso, &r_offset, XISO_TABLE_OFFSET_SIZE) != XISO_TABLE_OFFSET_SIZE) read_err();
 		if (!err && read(in_xiso, &node->start_sector, XISO_SECTOR_OFFSET_SIZE) != XISO_SECTOR_OFFSET_SIZE) read_err();
 		if (!err && read(in_xiso, &node->file_size, XISO_FILESIZE_SIZE) != XISO_FILESIZE_SIZE) read_err();
@@ -1444,15 +1445,15 @@ static int process_node(int in_xiso, dir_node* node, const char* in_path, modes 
 static dir_node_avl *avl_fetch( dir_node_avl *in_root, const char *in_filename ) {
 	int				result;
 
-	for ( ;; ) {
-		if ( in_root == NULL ) return NULL;
-	
+	while (in_root != NULL) {
 		result = avl_compare_key( in_filename, in_root->filename_cp1252);
 	
 		if ( result < 0 ) in_root = in_root->left;
 		else if ( result > 0 ) in_root = in_root->right;
 		else return in_root;
 	}
+
+	return NULL;
 }
 
 
@@ -1567,20 +1568,19 @@ static void avl_rotate_right( dir_node_avl **in_root ) {
 }
 
 
-static int avl_compare_key( const char *in_lhs, const char *in_rhs ) {
+static int avl_compare_key(const char* in_lhs, const char* in_rhs) {
 	unsigned char		a, b;
 
-	for ( ;; ) {
+	do {
 		a = (unsigned char)toupperCP1252(*in_lhs++);
 		b = (unsigned char)toupperCP1252(*in_rhs++);
-		
-		if ( a ) {
-			if ( b ) {
-				if ( a < b ) return -1;
-				if ( a > b ) return 1;
-			} else return 1;
-		} else return b ? -1 : 0;
-	}
+
+		if (a < b) return -1;
+		if (a > b) return 1;
+	} while (a && b);
+
+	/* If we're here, both a and b are '\0', otherwise we would have returned before. */
+	return 0;
 }
 
 
@@ -1620,7 +1620,7 @@ static int avl_traverse_depth_first( dir_node_avl *in_root, traversal_callback i
 #endif
 
 
-static int boyer_moore_init( const char *in_pattern, size_t in_pat_len, size_t in_alphabet_size ) {
+static int boyer_moore_init( const unsigned char *in_pattern, size_t in_pat_len, size_t in_alphabet_size ) {
 	size_t			j, k, t, t1, q, q1, *aux = NULL;
 	int				err = 0;
 
@@ -1635,7 +1635,7 @@ static int boyer_moore_init( const char *in_pattern, size_t in_pat_len, size_t i
 	if ((s_bc_table = (size_t*)malloc(in_alphabet_size * sizeof(size_t))) == NULL) mem_err();
 	if (!err) {
 		for (k = 0; k < in_alphabet_size; k++) s_bc_table[k] = in_pat_len;
-		for (k = 0; k < in_pat_len; k++) s_bc_table[(unsigned char)in_pattern[k]] = in_pat_len - 1 - k;
+		for (k = 0; k < in_pat_len; k++) s_bc_table[in_pattern[k]] = in_pat_len - 1 - k;
 	}
 
 	// Delta2 table (dd' algorithm with Rytter correction)
@@ -1683,7 +1683,7 @@ static void boyer_moore_done() {
 }
 
 
-static char* boyer_moore_search(char* in_text, size_t in_text_len) {
+static unsigned char* boyer_moore_search(unsigned char* in_text, size_t in_text_len) {
 	size_t	i, j;
 
 	if (s_pat_len == 0) return in_text;
@@ -1694,7 +1694,7 @@ static char* boyer_moore_search(char* in_text, size_t in_text_len) {
 			if (j == 0) return in_text + i;
 		}
 
-		i += max(s_bc_table[(unsigned char)in_text[i]], s_gs_table[j]);
+		i += max(s_bc_table[in_text[i]], s_gs_table[j]);
 	}
 	return NULL;
 }
@@ -1815,7 +1815,7 @@ static int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, unu
 
 
 static int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unused int in_depth ) {
-	char			*p = NULL;
+	unsigned char*	p = NULL;
 	uint32_t		bytes = 0, size = 0;
 	int				err = 0, fd = -1, n = 0, i = 0;
 	size_t			len;
@@ -1849,7 +1849,11 @@ static int write_file( dir_node_avl *in_avl, write_tree_context *in_context, unu
 					bytes -= n;
 					if (s_media_enable && xbe_file) {
 						n += i;
-						for (p = s_copy_buffer; (p = boyer_moore_search(p, n - (long)(p - s_copy_buffer))) != NULL; p += XISO_MEDIA_ENABLE_LENGTH) p[XISO_MEDIA_ENABLE_BYTE_POS] = XISO_MEDIA_ENABLE_BYTE;
+						p = s_copy_buffer;
+						while ((p = boyer_moore_search(p, (size_t)n - (p - s_copy_buffer))) != NULL) {
+							p[XISO_MEDIA_ENABLE_BYTE_POS] = xiso_media_enable_byte;
+							p += XISO_MEDIA_ENABLE_LENGTH;
+						}
 						if (bytes) {
 							i = XISO_MEDIA_ENABLE_LENGTH - 1;
 							n -= i;
@@ -2187,7 +2191,9 @@ static void write_sector( int in_xiso, xoff_t in_start, const char *in_name, con
 	ssize_t			wrote;
 	xoff_t			curpos = 0;
 	int				fp = -1, err = 0;
-	char		   *cwd, *sect = NULL, buf[ 256 ];
+	char			buf[256];
+	char		   *cwd;
+	unsigned char  *sect = NULL;
 
 	if ( ( cwd = getcwd( NULL, 0 ) ) == NULL ) mem_err();
 	if ( ! err && chdir( DEBUG_DUMP_DIRECTORY ) == -1 ) chdir_err( DEBUG_DUMP_DIRECTORY );
@@ -2198,7 +2204,7 @@ static void write_sector( int in_xiso, xoff_t in_start, const char *in_name, con
 	if ( ! err && ( curpos = lseek_with_error( in_xiso, 0, SEEK_CUR ) ) == -1 ) seek_err();
 	if ( ! err && lseek_with_error( in_xiso, in_start, SEEK_SET ) == -1 ) seek_err();
 	
-	if ( ! err && ( sect = (char *) malloc( XISO_SECTOR_SIZE ) ) == NULL ) mem_err();
+	if ( ! err && ( sect = (unsigned char *) malloc( XISO_SECTOR_SIZE ) ) == NULL ) mem_err();
 	
 	if ( ! err && read( in_xiso, sect, XISO_SECTOR_SIZE ) != XISO_SECTOR_SIZE ) read_err();
 	if ( ! err && ( wrote = write( fp, sect, XISO_SECTOR_SIZE ) ) != XISO_SECTOR_SIZE ) write_err();
