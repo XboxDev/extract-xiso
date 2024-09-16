@@ -128,7 +128,7 @@ jobs:
     - name: FreeBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
-        wget -nv http://ftp.plusline.de/FreeBSD/releases/amd64/13.2-RELEASE/base.txz && \
+        wget -nv http://ftp.plusline.de/FreeBSD/releases/amd64/13.4-RELEASE/base.txz && \
         mkdir -p $SYSROOT_PATH && cd $SYSROOT_PATH && \
         tar -xf /tmp/base.txz ./lib/ ./usr/lib/ ./usr/include/ && \
         cd $SYSROOT_PATH/usr/lib && \
@@ -162,12 +162,12 @@ jobs:
     - name: OpenBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
-        wget -nv  https://cdn.openbsd.org/pub/OpenBSD/7.4/amd64/base74.tgz \
-        https://cdn.openbsd.org/pub/OpenBSD/7.4/amd64/comp74.tgz && \
+        wget -nv  https://cdn.openbsd.org/pub/OpenBSD/7.5/amd64/base75.tgz \
+        https://cdn.openbsd.org/pub/OpenBSD/7.5/amd64/comp75.tgz && \
         mkdir -p $SYSROOT_PATH && cd $SYSROOT_PATH && \
-        tar -xf /tmp/base74.tgz ./usr/lib/ ./usr/include/ && \
-        tar -xf /tmp/comp74.tgz ./usr/lib/ ./usr/include/ && \
-        rm -f /tmp/base74.tgz /tmp/comp74.tgz
+        tar -xf /tmp/base75.tgz ./usr/lib/ ./usr/include/ && \
+        tar -xf /tmp/comp75.tgz ./usr/lib/ ./usr/include/ && \
+        rm -f /tmp/base75.tgz /tmp/comp75.tgz
     - name: CMake generate
       run: |
         mkdir build && cd build
@@ -196,8 +196,8 @@ jobs:
     - name: NetBSD toolchain setup
       run: |
         sudo apt-get -qq install clang lld && cd /tmp && \
-        wget -nv  https://cdn.netbsd.org/pub/NetBSD/NetBSD-9.3/amd64/binary/sets/base.tar.xz \
-        https://cdn.netbsd.org/pub/NetBSD/NetBSD-9.3/amd64/binary/sets/comp.tar.xz && \
+        wget -nv  https://cdn.netbsd.org/pub/NetBSD/NetBSD-9.4/amd64/binary/sets/base.tar.xz \
+        https://cdn.netbsd.org/pub/NetBSD/NetBSD-9.4/amd64/binary/sets/comp.tar.xz && \
         mkdir -p $SYSROOT_PATH && cd $SYSROOT_PATH && \
         tar -xf /tmp/base.tar.xz ./usr/lib/ ./usr/include/ && \
         tar -xf /tmp/comp.tar.xz ./usr/lib/ ./usr/include/ && \
