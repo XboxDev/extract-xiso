@@ -598,10 +598,10 @@ static int boyer_moore_init( const unsigned char *in_pattern, size_t in_pat_len,
 static int free_dir_node_avl(dir_node_avl* in_dir_node_avl, void* in_context, int in_depth);
 static int extract_file( int in_xiso, dir_node *in_file, modes in_mode, const char *path );
 static int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path );
-static int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, const char *in_iso_name );
+static int verify_xiso(int in_xiso, uint32_t* out_root_dir_sector, uint32_t* out_root_dir_size, file_time_t* out_file_time, const char* in_iso_name);
 static int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint16_t end_offset, const char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
 static int process_node(int in_xiso, dir_node* node, const char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
-static int create_xiso( char *in_root_directory, const char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback );
+static int create_xiso(char* in_root_directory, const char* in_output_directory, dir_node_avl* in_root, int in_xiso, char** out_iso_path, char* in_name, file_time_t* ft, progress_callback in_progress_callback);
 
 static int get_filetime_now( file_time_t *ft );
 static int generate_avl_tree_local( dir_node_avl **out_root, int *io_n );
@@ -653,6 +653,7 @@ int main( int argc, char **argv ) {
 	int					i, fd, opt_char, err = 0, isos = 0;
 	bool				extract = true, rewrite = false, x_seen = false, delete = false, optimized;
 	ptrdiff_t			diff;
+	file_time_t			ft = 0;
 	char				*path = NULL, *buf = NULL, *new_iso_path = NULL;
 	const char			*locale = NULL;
 	const char* const	*locale_arr = NULL;
@@ -773,7 +774,9 @@ int main( int argc, char **argv ) {
 				diff += 1;
 			}
 
-			if (!err) err = create_xiso(create->path, buf, NULL, -1, NULL, create->name ? create->name + diff : NULL, NULL);
+			if (!err && (err = get_filetime_now(&ft))) misc_err("cannot get current time");
+
+			if (!err) err = create_xiso(create->path, buf, NULL, -1, NULL, create->name ? create->name + diff : NULL, &ft, NULL);
 
 			if (buf) { free(buf); buf = NULL; }
 
@@ -947,7 +950,7 @@ static int log_err(unused_release const char* in_file, unused_release int in_lin
 #endif
 
 
-static int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *out_root_dir_size, const char *in_iso_name ) {
+static int verify_xiso(int in_xiso, uint32_t* out_root_dir_sector, uint32_t* out_root_dir_size, file_time_t* out_file_time, const char* in_iso_name) {
 	int				i, err = 0;
 	unsigned char	buffer[XISO_HEADER_DATA_LENGTH];
 
@@ -962,30 +965,31 @@ static int verify_xiso( int in_xiso, uint32_t *out_root_dir_sector, uint32_t *ou
 	if (!err && i == LSEEK_OFFSETS_LEN) misc_err("%s does not appear to be a valid xbox iso image", in_iso_name);
 
 	// read root directory information
-	if ( ! err && read( in_xiso, out_root_dir_sector, XISO_SECTOR_OFFSET_SIZE ) != XISO_SECTOR_OFFSET_SIZE ) read_err();
-	if ( ! err && read( in_xiso, out_root_dir_size, XISO_DIRTABLE_SIZE ) != XISO_DIRTABLE_SIZE ) read_err();
+	if (!err && read(in_xiso, out_root_dir_sector, XISO_SECTOR_OFFSET_SIZE) != XISO_SECTOR_OFFSET_SIZE) read_err();
+	if (!err && read(in_xiso, out_root_dir_size, XISO_DIRTABLE_SIZE) != XISO_DIRTABLE_SIZE) read_err();
+	if (!err && read(in_xiso, out_file_time, XISO_FILETIME_SIZE) != XISO_FILETIME_SIZE) read_err();
 
-	little32( *out_root_dir_sector );
-	little32( *out_root_dir_size );
+	little32(*out_root_dir_sector);
+	little32(*out_root_dir_size);
+	little64(*out_file_time);
 
 	// seek to header tail and verify media tag
-	if ( ! err && lseek_with_error(in_xiso, (xoff_t)XISO_FILETIME_SIZE + XISO_UNUSED_SIZE, SEEK_CUR) == -1) seek_err();
-	if ( ! err && read( in_xiso, buffer, XISO_HEADER_DATA_LENGTH ) != XISO_HEADER_DATA_LENGTH ) read_err();
-	if ( ! err && memcmp( buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH ) ) misc_err( "%s appears to be corrupt", in_iso_name );
+	if (!err && lseek_with_error(in_xiso, (xoff_t)XISO_UNUSED_SIZE, SEEK_CUR) == -1) seek_err();
+	if (!err && read(in_xiso, buffer, XISO_HEADER_DATA_LENGTH) != XISO_HEADER_DATA_LENGTH) read_err();
+	if (!err && memcmp(buffer, XISO_HEADER_DATA, XISO_HEADER_DATA_LENGTH)) misc_err("%s appears to be corrupt", in_iso_name);
 
 	// seek to root directory sector
 	if (!err && lseek_with_error(in_xiso, (xoff_t)*out_root_dir_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
-	
+
 	return err;
 }
 
 
 
 
-static int create_xiso( char *in_root_directory, const char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, progress_callback in_progress_callback ) {
+static int create_xiso( char *in_root_directory, const char *in_output_directory, dir_node_avl *in_root, int in_xiso, char **out_iso_path, char *in_name, file_time_t *ft, progress_callback in_progress_callback ) {
 	xoff_t					size = 0;
 	dir_node_avl			root = { 0 };
-	file_time_t				ft = 0;
 	write_tree_context		wt_context = { 0 };
 	uint32_t				start_sector = 0;
 	int						i = 0, n = 0, xiso = -1, err = 0, pad = 0;
@@ -1083,14 +1087,9 @@ static int create_xiso( char *in_root_directory, const char *in_output_directory
 		little32( root.file_size );
 	}
 	if ( ! err ) {
-		if ( in_root ) {
-			if (lseek_with_error(in_xiso, (xoff_t)XISO_HEADER_OFFSET + XISO_HEADER_DATA_LENGTH + XISO_SECTOR_OFFSET_SIZE + XISO_DIRTABLE_SIZE + s_xbox_disc_lseek, SEEK_SET) == -1) seek_err();
-			if ( ! err && read( in_xiso, s_copy_buffer, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) read_err();
-			if ( ! err && write( xiso, s_copy_buffer, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
-		} else {
-			if ( ( err = get_filetime_now(&ft) ) ) misc_err("cannot get current time");
-			if ( ! err && write( xiso, &ft, XISO_FILETIME_SIZE ) != XISO_FILETIME_SIZE ) write_err();
-		}
+		little64(*ft);
+		if (write(xiso, ft, XISO_FILETIME_SIZE) != XISO_FILETIME_SIZE) write_err();
+		little64(*ft);
 	}
 	memset(s_copy_buffer, 0, XISO_UNUSED_SIZE);
 	if ( ! err && write( xiso, s_copy_buffer, XISO_UNUSED_SIZE ) != XISO_UNUSED_SIZE ) write_err();
@@ -1164,6 +1163,7 @@ static int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_
 	dir_node_avl		   *root = NULL;
 	xoff_t					root_dir_start;
 	uint32_t				root_dir_sect = 0, root_dir_size = 0;
+	file_time_t				file_time;
 	uint16_t				root_end_offset;
 	size_t					len;
 	int						xiso = 0, err = 0;
@@ -1205,7 +1205,7 @@ static int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_
 		}
 	}
 
-	if (!err) err = verify_xiso(xiso, &root_dir_sect, &root_dir_size, name);
+	if (!err) err = verify_xiso(xiso, &root_dir_sect, &root_dir_size, &file_time, name);
 
 	if (!err && in_mode != k_rewrite) exiso_log("\n%s %s:\n", in_mode == k_extract ? "extracting" : "listing", name);
 
@@ -1221,7 +1221,7 @@ static int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_
 				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, k_generate_avl, &root, tree_strategy);
 				if (!err) err = traverse_xiso(xiso, root_dir_start, 0, root_end_offset, path, k_generate_avl, &root, discover_strategy);
 			}
-			if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, NULL, NULL);
+			if (!err) err = create_xiso(iso_name, in_path, root, xiso, out_iso_path, NULL, &file_time, NULL);
 		}
 		else {
 			exiso_log("\n%s%s (0 bytes)%s", in_mode == k_extract ? "creating\t" : "", path, in_mode == k_extract ? " [OK]" : ""); flush();
@@ -2123,17 +2123,16 @@ static int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 }
 
 
-static int get_filetime_now(file_time_t *ft) {
+static int get_filetime_now(file_time_t* ft) {
 	time_t				now = 0;
 	int					err = 0;
 
 	if (ft == NULL) return 1;
-	if ( ( now = time( NULL ) ) == -1 ) unknown_err();
-	if ( ! err ) {
+	if ((now = time(NULL)) == -1) unknown_err();
+	if (!err) {
 		*ft = (now * 10000000LL) + 116444736000000000LL;	// Magic numbers directly from Microsoft
-		little64(*ft);	// convert to little endian here because this is a PC only struct and we won't read it anyway
 	}
-	
+
 	return err;
 }
 
