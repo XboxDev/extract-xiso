@@ -596,7 +596,7 @@ static unsigned char *boyer_moore_search( unsigned char *in_text, size_t in_text
 static int boyer_moore_init( const unsigned char *in_pattern, size_t in_pat_len, size_t in_alphabet_size );
 
 static int free_dir_node_avl(dir_node_avl* in_dir_node_avl, void* in_context, int in_depth);
-static int extract_file( int in_xiso, dir_node *in_file, modes in_mode, const char *path );
+static int extract_file(int in_xiso, dir_node* in_file, const char* path);
 static int decode_xiso( char *in_xiso, char *in_path, modes in_mode, char **out_iso_path );
 static int verify_xiso(int in_xiso, uint32_t* out_root_dir_sector, uint32_t* out_root_dir_size, file_time_t* out_file_time, const char* in_iso_name);
 static int traverse_xiso(int in_xiso, xoff_t in_dir_start, uint16_t entry_offset, uint16_t end_offset, const char* in_path, modes in_mode, dir_node_avl** in_root, strategies strategy);
@@ -1423,7 +1423,7 @@ static int process_node(int in_xiso, dir_node* node, const char* in_path, modes 
 	}
 	else if (in_mode != k_generate_avl) {	// Write file
 		if (!err) {
-			if (in_mode == k_extract) err = extract_file(in_xiso, node, in_mode, in_path);
+			if (in_mode == k_extract) err = extract_file(in_xiso, node, in_path);
 			else {
 				exiso_log("\n%s%s (%u bytes)", in_path, node->filename, node->file_size); flush();
 			}
@@ -1705,7 +1705,7 @@ static unsigned char* boyer_moore_search(unsigned char* in_text, size_t in_text_
 #endif
 
 
-static int extract_file(int in_xiso, dir_node *in_file, modes in_mode, const char* path) {
+static int extract_file(int in_xiso, dir_node* in_file, const char* path) {
 	int						err = 0;
 	xoff_t					file_start = (xoff_t)in_file->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek;
 	uint32_t				i, size, totalsize = 0;
@@ -1715,38 +1715,38 @@ static int extract_file(int in_xiso, dir_node *in_file, modes in_mode, const cha
 
 	if (lseek_with_error(in_xiso, file_start, SEEK_SET) == -1) seek_err();
 
-	if ( in_mode == k_extract ) {
-		if (!err && (out = open(in_file->filename, WRITEFLAGS, 0644)) == -1) open_err(in_file->filename);
-	} else err = 1;
+	if (!err && (out = open(in_file->filename, WRITEFLAGS, 0644)) == -1) open_err(in_file->filename);
 
-	if ( ! err ) {
+	if (!err) {
 		exiso_log("\n");
-		if (in_file->file_size == 0) exiso_log("%s%s%s (0 bytes) [100%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename);
+		if (in_file->file_size == 0) {
+			exiso_log("extracting\t%s%s (0 bytes) [100%%]\r", path, in_file->filename);
+		}
 		else {
 			i = 0;
 			size = min(in_file->file_size, READWRITE_BUFFER_SIZE);
 			do {
-				read_size = read(in_xiso, s_copy_buffer, size);
-				if (read_size < 0) read_err();
-				else if (in_mode == k_extract && read_size != 0) {
-					if (write(out, s_copy_buffer, read_size) != read_size) write_err();
-				}
+				if ((read_size = read(in_xiso, s_copy_buffer, size)) < 0) read_err();
+				else if (read_size != 0 && (write(out, s_copy_buffer, read_size) != read_size)) write_err();
+
 				if (!err) {
 					totalsize += read_size;
 					totalpercent = (totalsize * 100.0f) / in_file->file_size;
-					exiso_log("%s%s%s (%u bytes) [%.1f%%]\r", in_mode == k_extract ? "extracting\t" : "", path, in_file->filename, in_file->file_size, totalpercent);
+					exiso_log("extracting\t%s%s (%u bytes) [%.1f%%]\r", path, in_file->filename, in_file->file_size, totalpercent);
 
 					i += read_size;
 					size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
 				}
 			} while (!err && i < in_file->file_size && read_size > 0);
+
 			if (!err && i < in_file->file_size) {
 				exiso_warn("File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
 				in_file->file_size = i;
 			}
 		}
-		if (in_mode == k_extract) close(out);
 	}
+
+	if (out != -1) close(out);
 
 	return err;
 }
