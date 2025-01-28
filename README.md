@@ -1,9 +1,6 @@
 # extract-xiso
-[![Master Build Status](https://ci.appveyor.com/api/projects/status/github/XboxDev/extract-xiso?branch=master&svg=true)](https://ci.appveyor.com/project/xboxdev-bot/extract-xiso/history)
 
 A command line utility created by [*in*](mailto:in@fishtank.com) to allow the creation, modification, and extraction of XISOs. Currently being maintained and modernized by the [*XboxDev organization*](https://github.com/XboxDev/XboxDev).
-
-**Notice:** 64-bit builds can work but have been known to create faulty images. Until this is fixed, use 32b builds.
 
 ## Features
 
