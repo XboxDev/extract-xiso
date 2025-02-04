@@ -102,3 +102,24 @@ make
 ```
 
 The compiled binary should now be in the `extract-xiso/build` directory as `extract-xiso`.
+
+### Setup with Docker
+
+If you don't want install direct in your computer, you can run inside a docker container:
+
+```
+# Clone Repo
+git clone https://github.com/XboxDev/extract-xiso.git
+
+# cd into directory
+cd extract-xiso
+
+# build image
+docker build --no-cache . -t extract-xiso
+
+# inside your game folder, change the GAME.ISO to your correct iso and run
+docker run -v `PWD`/GAME.ISO:/tmp/input/file.iso -v `PWD`/output:/tmp/output -ti extract-xiso extract-xiso -x -s /tmp/input/file.iso -d /tmp/output
+
+# check the file extract
+ls output
+```
