@@ -1,237 +1,30 @@
 /*
-	extract-xiso.c
+    Copyright 2016-2020 XboxDev
+    Copyright 2014 twillecomme
+    Copyright 2003-2012 in@fishtank.com
 
-	An xdvdfs .iso (xbox iso) file extraction and creation tool by in <in@fishtank.com>
-		written March 10, 2003
+    Redistribution and use in source and binary forms, with or without modification, are permitted provided that the 
+    following conditions are met:
 
+    1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following 
+    disclaimer.
 
-	View this file with your tab stops set to 4 spaces or it it will look wacky.
+    2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the 
+    following disclaimer in the documentation and/or other materials provided with the distribution.
 
+    3. All advertising materials mentioning features or use of this software must display the following acknowledgement: 
+    This product includes software developed by in <in@fishtank.com>.
 
-	Regarding licensing:
+    4. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote 
+    products derived from this software without specific prior written permission.
 
-	I think the GPL sucks!  (it stands for Generosity Poor License)
-
-	My open-source code is really *FREE* so you can do whatever you want with it,
-	as long as 1) you don't claim that you wrote my code and 2) you retain a notice
-	that some parts of the code are copyright in@fishtank.com and 3) you understand
-	there are no warranties.  I only guarantee that it will take up disk space!
-
-	If you want to help out with this project it would be welcome, just email me at
-	in@fishtank.com.
-
-	This code is copyright in@fishtank.com and is licensed under a slightly modified
-	version of the Berkeley Software License, which follows:
-
-	/*
-	 * Copyright (c) 2003 in <in@fishtank.com>
-	 * All rights reserved.
-	 *
-	 * Redistribution and use in source and binary forms, with or without
-	 * modification, are permitted provided that the following conditions
-	 * are met:
-	 *
-	 * 1. Redistributions of source code must retain the above copyright
-	 *    notice, this list of conditions and the following disclaimer.
-	 *
-	 * 2. Redistributions in binary form must reproduce the above copyright
-	 *    notice, this list of conditions and the following disclaimer in the
-	 *    documentation and/or other materials provided with the distribution.
-	 *
-	 * 3. All advertising materials mentioning features or use of this software
-	 *    must display the following acknowledgement:
-	 *
-	 *    This product includes software developed by in <in@fishtank.com>.
-	 *
-	 * 4. Neither the name "in" nor the email address "in@fishtank.com"
-	 *    may be used to endorse or promote products derived from this software
-	 *    without specific prior written permission.
-	 *
-	 * THIS SOFTWARE IS PROVIDED `AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES
-	 * INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND
-	 * FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.  IN NO EVENT SHALL THE
-	 * AUTHOR OR ANY CONTRIBUTOR(S) BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
-	 * SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
-	 * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
-	 * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
-	 * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
-	 * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF
-	 * ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-	 *\
-	
-	
-	Last modified:
-	
-		03.29.03 in:	Fixed a path display bug, changed the tree descent algorithm
-						and added ftp to xbox support (rev to v1.2)
-						
-		04.04.03 in:	Added a counter for total number of files in xiso (rev to
-						v1.2.1)  THIS VERSION NOT FOR RELEASE!
-						
-		04.18.03 in:	Added xoff_t typecasts for __u32 * __u32 manipulations.
-						This fixed a bug with very large iso's where the directory
-						table was at the end of the iso--duh! (rev to v1.3)
-						
-		04.19.03 in:	A user pointed out that the program is increasing its
-						memory usage over large iso's.  I've tracked this to the buffer
-						allocation in extract_file() during traverse_xiso()
-						recursions.  As a fix I've moved the copy buffer to a static
-						variable.  Not as encapsulated as I'd like but hey, this is
-						C after all.
-						
-						Also added support for FreeBSD (on Intel x86) (rev to v1.4)
-						
-		04.21.03 in:	It looks like whomever is making xiso creation tools out there
-						has never heard of a binary tree and is sticking *every*
-						directory entry off the right subnode (at least on all the iso's
-						I've found so far).  This causes extremely deep recursion for
-						iso's with lots of files (and also causes these iso's, when
-						burned to DVD, to behave as a linked list for file lookups, thus
-						providing *worst case* lookup performance at all times).
-						
-						Not only do I find this annoying and extremely bad programming,
-						I've noticed that it is causing sporadic stack overflows with
-						my (formerly) otherwise good tree traversal code.
-						
-						In order to combat such bad implementations, I've re-implemented
-						the traverse_xiso() routine to get rid of any non-directory
-						recursion.  Additionally, I've made a few extra tweaks to
-						conserve even more memory.  I can see now that I'm going to need
-						to write xiso creation as well and do it right. (rev to v1.5 beta)
-						NOT FOR RELEASE
-		
-		04.22.03 in:	Making some major changes...
-		
-						Working on the optimization algorithm, still needs some tweaks
-						apparently.  DO NOT RELEASE THIS SOURCE BUILD!
-						
-						NOTE:  I'm building this as 1.5 beta and sending the source to
-						Emil only, this source is not yet for release.
-
-		04.28.03 in:	I've finally decided that optimizing in-place just *isn't* going
-						to happen.  The xbox is *really* picky about how its b-trees
-						are laid out.  I've noticed that it will read the directory if
-						I lay the entries out in prefix order.  Seems kind of weird to
-						me that it would *have* to be that way but whatever.  So, I guess
-						I'll write xiso creation and then piggyback a rewrite type op
-						on top of it.  Not quite as nice since it means you need extra
-						disk space but such is life.
-
-		05.01.03 in:	Well it looks like I got the creation code working tonight, what
-						a pain in the ass *that* was.  I've been working on it in my free
-						time (which is almost non-existent) for a week now, bleh.  Also
-						decided to implement rewriting xisos and I think I'll add build
-						xiso from ftp-server, just to be *really* lazy.  I guess this
-						means I'll have to read the stat code in the ftp tree.  Hmmm,
-						probably need to dig around in there anyway...  A user reported
-						that newer builds of evox are barfing with ftp upload so I guess
-						I'll go debug that.  
-						
-						Also cleaned up the code quite a bit tonight just for posterity.
-						I'd just like to point out that I *know* I'm being really lazy with
-						all these big-ass functions and no header files and such.  The fact
-						is I just can't seem to bring myself to care woohaahaa!
-						
-						(rev to 2.0 beta)  NOT FOR RELEASE until I get the other goodies
-						written ;)
-						
-		05.03.03 in:	Added support for create xiso from ftp server.  Still need to debug
-						evox to see what the problem is-- looks like something to do for
-						tomorrow!
-						
-		05.06.03 in:	Finally got back to this little project ;0 -- the ftp bug was that
-						FtpWriteBlock() in the libftp kit was timing out on occasion and returning
-						less than a complete buffer.  So I fixed that and some other little
-						bugs here and there, plus I changed the handling of the create mode
-						so that you can now specify an iso name.  Hopefully that's a bit more
-						intuitive.
-						
-		05.10.03 in:	Fixed a lot of stuff by now, I think it's solid for 2.0 release.
-						(rev to 2.0, release)
-
-		05.13.03 in:	Oops, fixed a bug in main() passing an (essentially) nil pointer to
-						create_xiso that was causing a core dump and cleaned up the avl_fetch()
-						and avl_insert() routines.  (rev to 2.1, release)
-						
-		05.14.03 in:	Added media check fix, fixed a bug in the ftp library where FtpStat was
-						failing on filenames with spaces in them.
-						
-		06.16.03 in:	Based on code from zeek, I added support for win32, minus ftp
-						functionality.  Neither he nor I have the time to port the ftp library
-						to windows right now, but at least the creation code will work.  Big thanks
-						to zeek for taking the time to wade through the source and figure out
-						what needed to be tweaked for the windows build.
-
-		06.20.03 in:	Well I just couldn't release the windows build without ftp support (can
-						you say OCD <g> ;-), anyway I sat down today and ported the ftp library
-						to win32.  That was a major pain let me tell you as I don't have a decent
-						PC to run windows on (all my decent PC's run linux) and I've never really
-						programmed anything on Windows.  Who'd have known that I couldn't just use
-						fdopen() to convert a socket descriptor to a FILE *!  Anyway, whining aside
-						I think it all works the way it's supposed to.  I'm sure once I throw it on
-						the PC community I'll have plenty of bug reports, but such is life.  I also
-						fixed a few other minor glitches here and there that gcc never complained
-						about but that vc++ didn't like.
-
-		07.15.03 in:	Fixed a bug first reported by Metal Maniac (thanks) where the path string was
-						being generated improperly during xiso creation on windows.  Special thanks to
-						Hydra for submitting code that mostly fixed the problem, I needed to make a few
-						more tweaks but nothing much.  Hopefully this will solve the problem.  Also,
-						thanks to Huge for doing a Win32 GUI around extract-xiso 2.2!  Rev to 2.3, release.
-						
-		07.16.03 in:	Changed some of the help text, looks like I introduced a copy-paste
-						bug somewhere along the line.  Oops.
-						
-		07.28.03 in:	Added support for progress updating to create_xiso, now just pass in
-						a pointer to a progress_callback routine (see typedef below).  Also added
-						support on darwin for burning the iso to cd/dvd.  For some reason right now
-						everything works fine if I try to burn an image to a DVD, but if I try to
-						insert a cd it dies.  I have no idea as of yet what's wrong.  I am strongly
-						considering *not* opensourcing my cd-burning stuff once I get it working
-						as I can think of a few commercial uses for it.  Have to mull that one
-						over a bit more.  This version only for release to UI developers.
-						
-		12.02.03 in:	Fixed a few bugs in the ftp subsystem and increased the read-write buffer size
-						to 2Mb.  That should help ftp performance quite a bit.
-						
-		10.29.04 in:	Well, it's been a looooong time since I've worked on this little program...
-						I've always been irritated by the fact that extract-xiso would never create an
-						iso that could be auto-detected by CD/DVD burning software.  To burn iso's I've
-						always had to go in and select a manual sector size of 2048 bytes, etc.  What
-						a pain!  As a result, I've been trying to get my hands on the Yellow Book for
-						ages.  I never did manage that as I didn't want to pay for it but I did some
-						research the other day and came across the ECMA-119 specification.  It lays
-						out the exact volume format that I needed to use.  Hooray!  Now xiso's are
-						autodetected and burned properly by burning software...
-						
-						If you try to follow what I've done and find the write_volume_descriptors()
-						method cryptic, just go download the ecma-119 specification from the ecma
-						website.  Read about primary volume descriptors and it'll make sense.
-						
-						Bleh! This code is ugly ;-)
-
-		10.25.05 in:	Added in  patch from Nordman.  Thanks.
-						Added in security patch from Chris Bainbridge.  Thanks.
-						Fixed a few minor bugs.
-
-		01.18.10 aiyyo:	XBox 360 iso extraction supported.
-
-		10.04.10 aiyyo:	Added new command line switch (-s skip $SystemUpdate folder).
-						Display file progress in percent.
-						Try to create destination directory.
-
-		10.11.10 aiyyo:	Fix -l bug (empty list).
-
-		05.02.11 aiyyo:	Remove security patch.
-
-		09.30.11 somski: Added XGD3 support
-
-		01.11.14 twillecomme: Intégration of aiyyo's and somski's work. 
-						Minor warn fixes.
-
-	enjoy!
-	
-	in
+    THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, 
+    INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE 
+    DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, 
+    SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR 
+    SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, 
+    WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE 
+    OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
 #if defined( __LINUX__ )
