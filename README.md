@@ -81,6 +81,17 @@ Extract XISO contents to a directory.
 - make
 - gcc
 
+### Linux Distribution Requirements
+
+  #### Fedora
+  ```
+sudo dnf install cmake gcc gcc-c++ glibc-devel.i686 git -y 
+```
+  #### Ubuntu
+  ```
+sudo apt install gcc-multilib build-essential git -y
+```
+
 ### Windows / macOS / Linux
 
 After requirements are installed with your distribution's package manager (or homebrew for macOS), open terminal and change directory to the project root. Then run the following build commands:
