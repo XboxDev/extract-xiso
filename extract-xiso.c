@@ -369,11 +369,7 @@
 #endif
 
 
-#if ! defined( __cplusplus ) && ! defined( bool )
-	typedef int bool;
-	enum { false, true };
-#endif
-
+#include <stdbool.h>
 
 #ifndef nil
 	#define nil							0
