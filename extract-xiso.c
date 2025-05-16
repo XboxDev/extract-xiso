@@ -419,8 +419,9 @@
     -v                  Print version information and exit.\n\
 ", banner, argv[ 0 ], argv[ 0 ] );
 
-#define exiso_log						if ( ! s_quiet ) printf
-#define flush()							if ( ! s_quiet ) fflush( stdout )
+#define exiso_log(...)					if ( ! s_quiet ) { printf(__VA_ARGS__); }
+#define exiso_warn(...)					if ( ! s_quiet ) { printf(__VA_ARGS__); s_warned = true; }
+#define flush()							if ( ! s_quiet ) { fflush( stdout ); }
 
 #define mem_err()						{ log_err( __FILE__, __LINE__, "out of memory error\n" ); err = 1; }
 #define read_err()						{ log_err( __FILE__, __LINE__, "read error: %s\n", strerror( errno ) ); err = 1; }
@@ -626,7 +627,7 @@ static bool								s_real_quiet = false;
 static bool								s_media_enable = true;
 static xoff_t							s_total_bytes_all_isos = 0;
 static int								s_total_files_all_isos = 0;
-static bool								s_warned = 0;
+static bool								s_warned = false;
 
 static bool				                s_remove_systemupdate = false;
 static char				               *s_systemupdate = "$SystemUpdate";
@@ -1673,7 +1674,7 @@ int extract_file( int in_xiso, dir_node *in_file, modes in_mode , char* path) {
 					size = min(in_file->file_size - i, READWRITE_BUFFER_SIZE);
 				} while (i < in_file->file_size && read_size > 0);
 				if (!err && i < in_file->file_size) {
-					exiso_log("\nWARNING: File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
+					exiso_warn("\nWARNING: File %s is truncated. Reported size: %u bytes, read size: %u bytes!", in_file->filename, in_file->file_size, i);
 					in_file->file_size = i;
 				}
 			}
@@ -1822,7 +1823,7 @@ int write_file( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 			exiso_log(err ? "failed\n" : "[OK]\n");
 
 			if (!err && i != in_avl->file_size) {
-				exiso_log("WARNING: File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!\n", in_avl->filename, i, in_avl->file_size);
+				exiso_warn("WARNING: File %s is truncated. Reported size: %u bytes, wrote size: %u bytes!\n", in_avl->filename, i, in_avl->file_size);
 			}
 
 			if (!err) {
