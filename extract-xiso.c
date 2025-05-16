@@ -329,6 +329,8 @@
 	#define S_ISDIR( x )				( ( x ) & _S_IFDIR )
 	#define S_ISREG( x )				( ( x ) & _S_IFREG )
 
+	#define realpath(x, y) _fullpath(y, x, 0)
+
 	#include "win32/getopt.c"
 #if defined(_MSC_VER)
 	#include "win32/asprintf.c"
@@ -1718,24 +1720,30 @@ int write_tree( dir_node_avl *in_avl, write_tree_context *in_context, int in_dep
 				context.progress = in_context->progress;
 				context.final_bytes = in_context->final_bytes;
 		
-				if ( in_context->from == -1 ) {
-					if ( chdir( in_avl->filename ) == -1 ) chdir_err( in_avl->filename );
-				}
+				char* rpwd = realpath( ".", NULL );
+				if ( ! rpwd ) {
+					read_err();
+				} else {
+				    if ( in_context->from == -1 ) {
+					    if ( chdir( in_avl->filename ) == -1 ) chdir_err( in_avl->filename );
+				    }
 
-				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_file, &context, k_prefix, 0 );
-				if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_tree, &context, k_prefix, 0 );
+				    if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_file, &context, k_prefix, 0 );
+				    if ( ! err ) err = avl_traverse_depth_first( in_avl->subdirectory, (traversal_callback) write_tree, &context, k_prefix, 0 );
 
-				if (!err && lseek(in_context->xiso, (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
-				if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, (void*)in_context->xiso, k_prefix, 0);
-				if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
-				if (!err && (pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE))) {
-					memset(sector, XISO_PAD_BYTE, pad);
-					if (write(in_context->xiso, sector, pad) != pad) write_err();
-				}
+				    if (!err && lseek(in_context->xiso, (xoff_t)in_avl->start_sector * XISO_SECTOR_SIZE, SEEK_SET) == -1) seek_err();
+				    if (!err) err = avl_traverse_depth_first(in_avl->subdirectory, (traversal_callback)write_directory, (void*)(uintptr_t)in_context->xiso, k_prefix, 0);
+				    if (!err && (pos = lseek(in_context->xiso, 0, SEEK_CUR)) == -1) seek_err();
+				    if (!err && (pad = (int)((XISO_SECTOR_SIZE - (pos % XISO_SECTOR_SIZE)) % XISO_SECTOR_SIZE))) {
+					    memset(sector, XISO_PAD_BYTE, pad);
+					    if (write(in_context->xiso, sector, pad) != pad) write_err();
+				    }
 
-				if ( ! err && in_context->from == -1 ) {
-					if ( chdir( ".." ) == -1 ) chdir_err( ".." );
-				}
+				    if ( ! err && in_context->from == -1 ) {
+					    if ( chdir( rpwd ) == -1 ) chdir_err( rpwd );
+				    }
+			    }
+			    free(rpwd);
 				
 				if ( context.path ) free( context.path );
 			} else {
@@ -1986,10 +1994,18 @@ int generate_avl_tree_local( dir_node_avl **out_root, int *io_n ) {
 			if ( S_ISDIR( sb.st_mode ) ) {
 				empty_dir = false;
 
-				if ( chdir( avl->filename ) == -1 ) chdir_err( avl->filename );
+				char* rpwd = realpath( ".", NULL );
+				if ( ! rpwd ) {
+					read_err();
+				} else {
 
-				if ( ! err ) err = generate_avl_tree_local( &avl->subdirectory, io_n );
-				if ( ! err && chdir( ".." ) == -1 ) chdir_err( ".." );
+					if ( ! err && chdir( avl->filename ) == -1 ) chdir_err( avl->filename );
+
+					if ( ! err ) err = generate_avl_tree_local( &avl->subdirectory, io_n );
+					if ( ! err && chdir( rpwd ) == -1 ) chdir_err( rpwd );
+
+					free( rpwd );
+				}
 			} else if ( S_ISREG( sb.st_mode ) ) {
 				empty_dir = false;
 				if ( sb.st_size > ULONG_MAX ) {
