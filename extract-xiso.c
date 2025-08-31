@@ -313,6 +313,18 @@
 	#define stat						stat64
 	
 	typedef off64_t 					xoff_t;
+#elif defined( __MSYS__ )
+	#define exiso_target				"msys"
+
+	#define PATH_CHAR					'/'
+	#define PATH_CHAR_STR				"/"
+
+	#define FORCE_ASCII					0
+	#define READFLAGS					O_RDONLY
+	#define WRITEFLAGS					O_WRONLY | O_CREAT | O_TRUNC
+	#define READWRITEFLAGS				O_RDWR
+
+	typedef _off64_t 					xoff_t;
 #elif defined( __OPENBSD__ )
 	#define exiso_target				"openbsd"
 #elif defined( _WIN32 )
