@@ -94,11 +94,10 @@ jobs:
     - uses: actions/checkout@v7
     - name: CMake generate
       run: |
-        mkdir build && cd build
-        cmake ..
+        mkdir build
+        cmake -B build -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
     - name: Build
-      working-directory: build
-      run: cmake --build . -j $(sysctl -n hw.ncpu)
+      run: cmake --build build -j $(sysctl -n hw.ncpu)
     - name: Prepare artifacts
       run: |
         mkdir artifacts
