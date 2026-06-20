@@ -78,14 +78,12 @@ jobs:
       run: cmake --build . -j $(nproc --all)
     - name: Prepare artifacts
       run: |
-        mkdir artifacts
-        mv -v build/extract-xiso LICENSE.TXT artifacts
-        cd artifacts
-        zip -r ../extract-xiso_${{ runner.os }}.zip *
+        mkdir extract-xiso_${{ runner.os }}
+        mv -v build/extract-xiso LICENSE.TXT extract-xiso_${{ runner.os }}
     - uses: actions/upload-artifact@v7
       with:
         name: extract-xiso_${{ runner.os }}
-        path: extract-xiso_${{ runner.os }}.zip
+        path: extract-xiso_${{ runner.os }}
 
   build-macos:
     runs-on: macos-latest
@@ -100,14 +98,12 @@ jobs:
       run: cmake --build build -j $(sysctl -n hw.ncpu)
     - name: Prepare artifacts
       run: |
-        mkdir artifacts
-        mv -v build/extract-xiso LICENSE.TXT artifacts
-        cd artifacts
-        zip -r ../extract-xiso_${{ runner.os }}.zip *
+        mkdir extract-xiso_${{ runner.os }}
+        mv -v build/extract-xiso LICENSE.TXT extract-xiso_${{ runner.os }}
     - uses: actions/upload-artifact@v7
       with:
         name: extract-xiso_${{ runner.os }}
-        path: extract-xiso_${{ runner.os }}.zip
+        path: extract-xiso_${{ runner.os }}
 
   Release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/master'
