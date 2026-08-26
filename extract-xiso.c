@@ -1318,6 +1318,7 @@ left_processed:
 				
 				subdir.parent = nil;
 				if ( ! err && dir->file_size > 0 ) err = traverse_xiso( in_xiso, &subdir, (xoff_t) dir->start_sector * XISO_SECTOR_SIZE + s_xbox_disc_lseek, path, in_mode, in_mode == k_generate_avl ? &dir->avl_node->subdirectory : nil, in_ll_compat );
+				else if ( in_mode == k_generate_avl ) dir->avl_node->subdirectory = EMPTY_SUBDIRECTORY;
 
 				if ( !s_remove_systemupdate || !strstr( dir->filename, s_systemupdate ) )
 				{
